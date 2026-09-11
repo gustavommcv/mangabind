@@ -75,6 +75,16 @@ func run(input, output string) error {
 	for _, c := range result.Unassigned {
 		fmt.Fprintf(os.Stderr, "warning: chapter has no volume number, skipped: %q\n", filepath.Base(c.Dir))
 	}
+	for _, g := range result.Gaps {
+		fmt.Fprintf(os.Stderr, "warning: volume %v is missing chapter(s) between %v and %v\n", g.Volume, g.After, g.Before)
+	}
+	for _, c := range result.Conflicts {
+		fmt.Fprintf(os.Stderr, "warning: volume %v chapter %v%s has %d conflicting sources, all skipped:\n",
+			c.Volume, c.Chapter, c.Special, len(c.Dirs))
+		for _, d := range c.Dirs {
+			fmt.Fprintf(os.Stderr, "  - %q\n", filepath.Base(d))
+		}
+	}
 
 	return nil
 }
