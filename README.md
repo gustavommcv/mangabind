@@ -44,6 +44,25 @@ Early development - see [docs/adr](docs/adr) for the design decisions made so fa
 
 ## Install
 
+**macOS/Linux:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.sh | sh
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.ps1 | iex
+```
+
+Both scripts download the right binary for your OS/architecture from the
+[latest release](https://github.com/gustavommcv/mangabind/releases/latest) and put it on your
+PATH - no need to install Go. Prebuilt binaries and checksums for every release are also available
+there directly, if you'd rather install manually.
+
+Already have Go and want the dev version instead:
+
 ```bash
 go install github.com/gustavommcv/mangabind/cmd/mangabind@latest
 ```
