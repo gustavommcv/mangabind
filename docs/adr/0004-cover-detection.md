@@ -4,7 +4,7 @@ Date: 2026-09-11
 
 ## Status
 
-Accepted
+Superseded by [ADR 0005](0005-drop-cover-detection.md)
 
 ## Context
 

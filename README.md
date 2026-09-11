@@ -6,7 +6,7 @@ off to [Kindle Comic Converter](https://github.com/ciromattia/kcc) or any other 
 
 ```
 HakuNeko (downloads chapter by chapter)
-    -> Mangabind (groups chapters into volumes, preserves the cover, writes .cbz)
+    -> Mangabind (groups chapters into volumes, writes .cbz)
     -> KCC (image processing: resize, format conversion, ...)
     -> your reader (KOReader, Kindle, ...)
 ```
@@ -22,12 +22,14 @@ folder. Two things make turning that into per-volume archives non-trivial:
   using a different folder-naming convention (`Vol.01 Ch.0001 - Title (en) [Group]`, `Chapter 1`,
   `c001`, ...). Detection has to handle a mix of conventions within one input folder.
 
-Mangabind also detects and preserves the official volume cover when one is present (as a
-dedicated chapter-0/cover folder or file), placing it as the first page of the resulting `.cbz`.
-
 **Out of scope:** any image processing (resize, recompression, cropping, color conversion) - that
-is KCC's job, the next step in the pipeline. Mangabind only reorganizes files into `.cbz`
-containers; it never modifies, moves, or deletes your original downloaded files.
+is KCC's job, the next step in the pipeline. Mangabind also doesn't try to identify or reposition
+a "cover" page - if a source ships its cover as its own chapter (e.g. `Ch.0`), normal
+chapter-number ordering already places it first; readers display whatever page ends up first
+regardless. Deciding what counts as a cover is the source/scan group's call, not Mangabind's (see
+[docs/adr/0005-drop-cover-detection.md](docs/adr/0005-drop-cover-detection.md)). Mangabind only
+reorganizes files into `.cbz` containers; it never modifies, moves, or deletes your original
+downloaded files.
 
 ## Status
 
@@ -47,12 +49,11 @@ mangabind --input /path/to/downloaded/manga --output /path/to/output
 
 ## How detection works
 
-Chapter-folder parsing and cover detection are both implemented as pluggable strategies rather
-than a single fixed regex, because naming conventions vary even within one manga. See
-[docs/adr/0003-pluggable-chapter-parsing.md](docs/adr/0003-pluggable-chapter-parsing.md) and
-[docs/adr/0004-cover-detection.md](docs/adr/0004-cover-detection.md) for the reasoning, and
-[CONTRIBUTING.md](CONTRIBUTING.md) for how to add a parser for a naming convention Mangabind
-doesn't yet recognize.
+Chapter-folder parsing is implemented as a chain of pluggable strategies rather than a single
+fixed regex, because naming conventions vary even within one manga. See
+[docs/adr/0003-pluggable-chapter-parsing.md](docs/adr/0003-pluggable-chapter-parsing.md) for the
+reasoning, and [CONTRIBUTING.md](CONTRIBUTING.md) for how to add a parser for a naming convention
+Mangabind doesn't yet recognize.
 
 ## Contributing
 

@@ -33,14 +33,15 @@ for why).
 4. If a folder name genuinely can't be parsed with confidence, don't guess: return `false` so it
    surfaces in the "unprocessed" report instead of being silently mis-grouped.
 
-Adding a new `CoverDetector` strategy under `internal/cover/` follows the same shape - see
-[docs/adr/0004-cover-detection.md](docs/adr/0004-cover-detection.md).
-
 ## Scope
 
 Mangabind reorganizes files into `.cbz` archives. It does not resize, recompress, crop, or
 otherwise touch image content - that's explicitly out of scope (it's KCC's job). PRs that add
 image processing will be redirected elsewhere.
+
+Mangabind also doesn't try to identify or reposition a "cover" page - see
+[docs/adr/0005-drop-cover-detection.md](docs/adr/0005-drop-cover-detection.md) for why. PRs adding
+cover-detection heuristics will be redirected too.
 
 ## Language
 
