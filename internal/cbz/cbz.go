@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/gustavommcv/Mangabind/internal/grouper"
+	"github.com/gustavommcv/mangabind/internal/grouper"
 )
 
 // Write creates a .cbz at outPath containing pages, in the given order.

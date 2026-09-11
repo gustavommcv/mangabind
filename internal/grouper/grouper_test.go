@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/gustavommcv/Mangabind/internal/parser"
-	"github.com/gustavommcv/Mangabind/internal/scanner"
+	"github.com/gustavommcv/mangabind/internal/parser"
+	"github.com/gustavommcv/mangabind/internal/scanner"
 )
 
 func TestGroup(t *testing.T) {

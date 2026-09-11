@@ -38,7 +38,7 @@ Early development - see [docs/adr](docs/adr) for the design decisions made so fa
 ## Install
 
 ```bash
-go install github.com/gustavommcv/Mangabind/cmd/mangabind@latest
+go install github.com/gustavommcv/mangabind/cmd/mangabind@latest
 ```
 
 ## Usage

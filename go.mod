@@ -1,3 +1,3 @@
-module github.com/gustavommcv/Mangabind
+module github.com/gustavommcv/mangabind
 
 go 1.23

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gustavommcv/Mangabind/internal/grouper"
+	"github.com/gustavommcv/mangabind/internal/grouper"
 )
 
 func TestWrite(t *testing.T) {

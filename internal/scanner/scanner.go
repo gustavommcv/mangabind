@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/gustavommcv/Mangabind/internal/naturalsort"
+	"github.com/gustavommcv/mangabind/internal/naturalsort"
 )
 
 // ChapterDir is one chapter folder found directly under a manga's root

@@ -7,10 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gustavommcv/Mangabind/internal/cbz"
-	"github.com/gustavommcv/Mangabind/internal/grouper"
-	"github.com/gustavommcv/Mangabind/internal/parser"
-	"github.com/gustavommcv/Mangabind/internal/scanner"
+	"github.com/gustavommcv/mangabind/internal/cbz"
+	"github.com/gustavommcv/mangabind/internal/grouper"
+	"github.com/gustavommcv/mangabind/internal/parser"
+	"github.com/gustavommcv/mangabind/internal/scanner"
 )
 
 func main() {

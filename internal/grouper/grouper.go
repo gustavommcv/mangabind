@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/gustavommcv/Mangabind/internal/parser"
+	"github.com/gustavommcv/mangabind/internal/parser"
 )
 
 // Chapter is a parsed chapter folder together with its page files, ready to
