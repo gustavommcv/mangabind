@@ -51,8 +51,12 @@ go install github.com/gustavommcv/mangabind/cmd/mangabind@latest
 ## Usage
 
 ```bash
-mangabind --input /path/to/downloaded/manga --output /path/to/output
+mangabind --input /path/to/downloaded/manga [--output /path/to/output]
 ```
+
+`--output` is optional. If you don't pass it, Mangabind writes to a sibling folder next to
+`--input`, named `<input folder> (mangabind)` - never inside `--input` itself, since that would
+make the next run see the output folder as a bogus chapter.
 
 ## How detection works
 

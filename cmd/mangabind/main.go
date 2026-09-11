@@ -16,18 +16,32 @@ import (
 
 func main() {
 	input := flag.String("input", "", "directory containing one folder or .cbz file per downloaded chapter")
-	output := flag.String("output", "", "directory to write the generated .cbz files into")
+	output := flag.String("output", "", "directory to write the generated .cbz files into (default: a sibling folder next to --input)")
 	flag.Parse()
 
-	if *input == "" || *output == "" {
-		fmt.Fprintln(os.Stderr, "usage: mangabind --input <dir> --output <dir>")
+	if *input == "" {
+		fmt.Fprintln(os.Stderr, "usage: mangabind --input <dir> [--output <dir>]")
 		os.Exit(2)
 	}
 
-	if err := run(*input, *output); err != nil {
+	out := *output
+	if out == "" {
+		out = defaultOutputDir(*input)
+		fmt.Printf("mangabind: no --output given, writing to %s\n", out)
+	}
+
+	if err := run(*input, out); err != nil {
 		fmt.Fprintln(os.Stderr, "mangabind:", err)
 		os.Exit(1)
 	}
+}
+
+// defaultOutputDir picks a sibling directory next to input, named after it,
+// used when --output isn't given. A sibling rather than a subdirectory of
+// input matters: writing inside the scanned input tree would make the next
+// run see the output folder itself as an unrecognized chapter.
+func defaultOutputDir(input string) string {
+	return filepath.Join(filepath.Dir(input), filepath.Base(input)+" (mangabind)")
 }
 
 func run(input, output string) error {
