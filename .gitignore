@@ -1,0 +1,22 @@
+# Copyrighted manga fixtures used for local/manual testing - never commit these.
+/examples/
+/Examples/
+
+# Build output
+/dist/
+/bin/
+*.exe
+*.cbz
+
+# Go tooling
+*.test
+*.out
+/coverage.txt
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
