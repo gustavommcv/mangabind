@@ -1,0 +1,79 @@
+package cbz
+
+import (
+	"archive/zip"
+	"io"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/gustavommcv/Mangabind/internal/grouper"
+)
+
+func TestWrite(t *testing.T) {
+	dir := t.TempDir()
+	src1 := filepath.Join(dir, "a.jpg")
+	src2 := filepath.Join(dir, "b.jpg")
+	if err := os.WriteFile(src1, []byte("AAA"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(src2, []byte("BB"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	pages := []grouper.Page{
+		{SourcePath: src1, ArchiveName: "c001_p0001.jpg"},
+		{SourcePath: src2, ArchiveName: "c001_p0002.jpg"},
+	}
+
+	out := filepath.Join(dir, "out", "Vol.01.cbz")
+	if err := Write(out, pages); err != nil {
+		t.Fatal(err)
+	}
+
+	zr, err := zip.OpenReader(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zr.Close()
+
+	if len(zr.File) != 2 {
+		t.Fatalf("got %d files, want 2", len(zr.File))
+	}
+	if zr.File[0].Name != "c001_p0001.jpg" || zr.File[1].Name != "c001_p0002.jpg" {
+		t.Fatalf("unexpected names/order: %q, %q", zr.File[0].Name, zr.File[1].Name)
+	}
+	if zr.File[0].Method != zip.Store {
+		t.Fatalf("method = %v, want zip.Store (no recompression)", zr.File[0].Method)
+	}
+
+	rc, err := zr.File[0].Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rc.Close()
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "AAA" {
+		t.Fatalf("content = %q, want %q", data, "AAA")
+	}
+}
+
+func TestVolumeFileName(t *testing.T) {
+	cases := []struct {
+		manga string
+		vol   float64
+		want  string
+	}{
+		{"Chainsaw Man", 1, "Chainsaw Man - Vol.01.cbz"},
+		{"Some Manga", 12, "Some Manga - Vol.12.cbz"},
+		{"Omnibus", 1.5, "Omnibus - Vol.1.5.cbz"},
+	}
+	for _, c := range cases {
+		if got := VolumeFileName(c.manga, c.vol); got != c.want {
+			t.Errorf("VolumeFileName(%q, %v) = %q, want %q", c.manga, c.vol, got, c.want)
+		}
+	}
+}
