@@ -63,6 +63,61 @@ func TestWrite(t *testing.T) {
 	}
 }
 
+func TestWriteFromArchiveSource(t *testing.T) {
+	dir := t.TempDir()
+
+	// A source .cbz, as if downloaded directly by HakuNeko in that format.
+	srcCbz := filepath.Join(dir, "source-chapter.cbz")
+	sf, err := os.Create(srcCbz)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw := zip.NewWriter(sf)
+	w, err := zw.Create("01.jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("PAGE-ONE")); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	sf.Close()
+
+	pages := []grouper.Page{
+		{SourcePath: srcCbz, SourceInArchive: "01.jpg", ArchiveName: "c001 - Chapter One/p0001.jpg"},
+	}
+
+	out := filepath.Join(dir, "out", "Vol.01.cbz")
+	if err := Write(out, pages); err != nil {
+		t.Fatal(err)
+	}
+
+	zr, err := zip.OpenReader(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zr.Close()
+
+	if len(zr.File) != 1 || zr.File[0].Name != "c001 - Chapter One/p0001.jpg" {
+		t.Fatalf("unexpected output: %+v", zr.File)
+	}
+
+	rc, err := zr.File[0].Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rc.Close()
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "PAGE-ONE" {
+		t.Fatalf("content = %q, want %q (bytes should pass through from inside the source archive)", data, "PAGE-ONE")
+	}
+}
+
 func TestVolumeFileName(t *testing.T) {
 	cases := []struct {
 		manga string

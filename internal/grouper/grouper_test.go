@@ -9,25 +9,28 @@ import (
 )
 
 func TestGroup(t *testing.T) {
-	dirs, err := scanner.Scan("../../testdata/sample_manga")
+	entries, skipped, err := scanner.Scan("../../testdata/sample_manga")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(skipped) != 0 {
+		t.Fatalf("skipped = %v, want none", skipped)
 	}
 
 	reg := parser.DefaultRegistry()
 	var chapters []Chapter
 	var unparsed []string
-	for _, d := range dirs {
-		parsed, _, ok := reg.Parse(d.Name)
+	for _, e := range entries {
+		parsed, _, ok := reg.Parse(e.Name)
 		if !ok {
-			unparsed = append(unparsed, d.Name)
+			unparsed = append(unparsed, e.Name)
 			continue
 		}
-		pages, err := scanner.Pages(d.Path)
+		pages, err := scanner.Pages(e.Path)
 		if err != nil {
 			t.Fatal(err)
 		}
-		chapters = append(chapters, Chapter{Parsed: parsed, Dir: d.Path, Pages: pages})
+		chapters = append(chapters, Chapter{Parsed: parsed, Path: e.Path, Pages: pages})
 	}
 
 	result := Group(chapters, unparsed)

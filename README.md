@@ -13,14 +13,21 @@ HakuNeko (downloads chapter by chapter)
 
 ## The problem
 
-HakuNeko downloads each chapter into its own folder, with pages numbered from `001` in every
-folder. Two things make turning that into per-volume archives non-trivial:
+HakuNeko downloads each chapter as its own unit - either a folder of loose images, or (if you pick
+that download format) a `.cbz` file - with pages numbered from `001` in every one. Two things make
+turning that into per-volume archives non-trivial:
 
-- **Name collisions** - every chapter folder restarts page numbering, so folders can't just be
-  merged.
+- **Name collisions** - every chapter restarts page numbering, so chapters can't just be merged.
 - **Inconsistent naming** - a single manga is often scanned by different groups over time, each
-  using a different folder-naming convention (`Vol.01 Ch.0001 - Title (en) [Group]`, `Chapter 1`,
-  `c001`, ...). Detection has to handle a mix of conventions within one input folder.
+  using a different naming convention (`Vol.01 Ch.0001 - Title (en) [Group]`, `Chapter 1`, `c001`,
+  ...). Detection has to handle a mix of conventions within one input folder.
+
+Mangabind accepts a mix of chapter folders and `.cbz` chapter files in the same input directory.
+HakuNeko's other two download formats, `.epub` and `.pdf`, aren't supported - those are already
+finished reading documents rather than raw scans, and merging them correctly would mean
+re-implementing a meaningful part of an EPUB/PDF assembler rather than reorganizing files (see
+[docs/adr/0007-cbz-chapter-support.md](docs/adr/0007-cbz-chapter-support.md)). Mangabind reports
+any `.epub`/`.pdf` chapter it finds instead of silently ignoring it.
 
 **Out of scope:** any image processing (resize, recompression, cropping, color conversion) - that
 is KCC's job, the next step in the pipeline. Mangabind also doesn't try to identify or reposition

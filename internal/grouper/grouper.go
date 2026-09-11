@@ -13,18 +13,31 @@ import (
 	"github.com/gustavommcv/mangabind/internal/parser"
 )
 
-// Chapter is a parsed chapter folder together with its page files, ready to
-// be grouped into a Volume.
+// Chapter is a parsed chapter unit together with its page list, ready to be
+// grouped into a Volume. A chapter is either a folder of loose images or a
+// .cbz archive (HakuNeko supports downloading either way); see
+// docs/adr/0007-cbz-chapter-support.md.
 type Chapter struct {
 	Parsed parser.ParsedChapter
-	Dir    string   // absolute path to the chapter folder
-	Pages  []string // page filenames, in natural order (see scanner.Pages)
+	Path   string   // chapter folder path, or the .cbz archive path when IsArchive
+	Pages  []string // page filenames (folder) or in-archive entry names (archive), natural order
+
+	// IsArchive is true when Path is a .cbz file rather than a folder, in
+	// which case Pages are entry names to read from inside that archive
+	// (see scanner.PagesInArchive) rather than filenames on disk.
+	IsArchive bool
 }
 
 // Page is one page ready to be written into a volume's .cbz: where to read
 // it from, and the collision-free name it gets inside the archive.
 type Page struct {
-	SourcePath  string
+	SourcePath string
+
+	// SourceInArchive, when non-empty, means SourcePath is a .cbz archive
+	// and this is the entry name to read the page from inside it, instead
+	// of reading SourcePath directly as a plain file.
+	SourceInArchive string
+
 	ArchiveName string
 }
 
@@ -44,7 +57,7 @@ type Gap struct {
 	Before float64 // next chapter number seen after the gap
 }
 
-// Conflict flags two or more chapter folders that claim the same volume,
+// Conflict flags two or more chapter units that claim the same volume,
 // chapter number, and special suffix - typically the same chapter
 // downloaded from two different scan groups. Mangabind has no way to know
 // which source is "correct", so none of the conflicting chapters are
@@ -54,7 +67,7 @@ type Conflict struct {
 	Volume  float64
 	Chapter float64
 	Special string
-	Dirs    []string // the conflicting chapter folders, excluded from output
+	Sources []string // the conflicting chapter folders/.cbz files, excluded from output
 }
 
 // Result is the outcome of grouping a manga's chapters into volumes.
@@ -139,10 +152,12 @@ func Group(chapters []Chapter, unparsed []string) Result {
 		for ci, ch := range resolved {
 			chapterDir := chapterDirName(ci+1, ch.Parsed.Title)
 			for pi, name := range ch.Pages {
-				pages = append(pages, Page{
-					SourcePath:  filepath.Join(ch.Dir, name),
-					ArchiveName: fmt.Sprintf("%s/p%04d%s", chapterDir, pi+1, filepath.Ext(name)),
-				})
+				archiveName := fmt.Sprintf("%s/p%04d%s", chapterDir, pi+1, filepath.Ext(name))
+				if ch.IsArchive {
+					pages = append(pages, Page{SourcePath: ch.Path, SourceInArchive: name, ArchiveName: archiveName})
+				} else {
+					pages = append(pages, Page{SourcePath: filepath.Join(ch.Path, name), ArchiveName: archiveName})
+				}
 			}
 		}
 		volumes = append(volumes, Volume{Number: v, Pages: pages})
@@ -237,11 +252,11 @@ func resolveConflicts(volume float64, chs []Chapter) (resolved []Chapter, confli
 	})
 
 	for _, k := range keys {
-		var dirs []string
+		var sources []string
 		for _, c := range byKey[k] {
-			dirs = append(dirs, c.Dir)
+			sources = append(sources, c.Path)
 		}
-		conflicts = append(conflicts, Conflict{Volume: volume, Chapter: k.Chapter, Special: k.Special, Dirs: dirs})
+		conflicts = append(conflicts, Conflict{Volume: volume, Chapter: k.Chapter, Special: k.Special, Sources: sources})
 	}
 
 	return resolved, conflicts

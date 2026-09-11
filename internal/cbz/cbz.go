@@ -41,7 +41,7 @@ func Write(outPath string, pages []grouper.Page) error {
 }
 
 func addPage(zw *zip.Writer, p grouper.Page) error {
-	src, err := os.Open(p.SourcePath)
+	src, err := openPage(p)
 	if err != nil {
 		return err
 	}
@@ -56,6 +56,41 @@ func addPage(zw *zip.Writer, p grouper.Page) error {
 	}
 
 	_, err = io.Copy(w, src)
+	return err
+}
+
+// openPage opens a page for reading: a plain file, or - when
+// SourceInArchive is set - an entry inside the .cbz archive at SourcePath.
+func openPage(p grouper.Page) (io.ReadCloser, error) {
+	if p.SourceInArchive == "" {
+		return os.Open(p.SourcePath)
+	}
+
+	archive, err := zip.OpenReader(p.SourcePath)
+	if err != nil {
+		return nil, err
+	}
+	entry, err := archive.Open(p.SourceInArchive)
+	if err != nil {
+		archive.Close()
+		return nil, err
+	}
+	return &archiveEntryReader{ReadCloser: entry, archive: archive}, nil
+}
+
+// archiveEntryReader closes both the archive entry and its parent zip
+// reader, so a page read from inside a source .cbz doesn't leak the open
+// archive handle.
+type archiveEntryReader struct {
+	io.ReadCloser
+	archive *zip.ReadCloser
+}
+
+func (r *archiveEntryReader) Close() error {
+	err := r.ReadCloser.Close()
+	if archErr := r.archive.Close(); err == nil {
+		err = archErr
+	}
 	return err
 }
 
