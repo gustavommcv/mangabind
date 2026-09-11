@@ -47,9 +47,15 @@ func TestGroup(t *testing.T) {
 	for _, p := range result.Volumes[0].Pages {
 		names = append(names, p.ArchiveName)
 	}
-	// Ch.0001 (3 pages: 01,02,10.jpg) then Ch.0002 (1 page), positional
-	// chapter index in the archive name - not the source chapter number.
-	want := []string{"c001_p0001.jpg", "c001_p0002.jpg", "c001_p0003.jpg", "c002_p0001.jpg"}
+	// Ch.0001 (3 pages: 01,02,10.jpg) then Ch.0002 (1 page), each chapter in
+	// its own directory named by position (not source chapter number) and
+	// title - see chapterDirName.
+	want := []string{
+		"c001 - Title One/p0001.jpg",
+		"c001 - Title One/p0002.jpg",
+		"c001 - Title One/p0003.jpg",
+		"c002 - Title Two/p0001.jpg",
+	}
 	if !reflect.DeepEqual(names, want) {
 		t.Fatalf("archive names = %v, want %v", names, want)
 	}

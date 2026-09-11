@@ -22,8 +22,8 @@ func TestWrite(t *testing.T) {
 	}
 
 	pages := []grouper.Page{
-		{SourcePath: src1, ArchiveName: "c001_p0001.jpg"},
-		{SourcePath: src2, ArchiveName: "c001_p0002.jpg"},
+		{SourcePath: src1, ArchiveName: "c001 - Chapter One/p0001.jpg"},
+		{SourcePath: src2, ArchiveName: "c002 - Chapter Two/p0001.jpg"},
 	}
 
 	out := filepath.Join(dir, "out", "Vol.01.cbz")
@@ -40,7 +40,9 @@ func TestWrite(t *testing.T) {
 	if len(zr.File) != 2 {
 		t.Fatalf("got %d files, want 2", len(zr.File))
 	}
-	if zr.File[0].Name != "c001_p0001.jpg" || zr.File[1].Name != "c001_p0002.jpg" {
+	// A "/" in ArchiveName must produce a real per-chapter directory inside
+	// the archive - this is what lets KCC build a per-chapter TOC entry.
+	if zr.File[0].Name != "c001 - Chapter One/p0001.jpg" || zr.File[1].Name != "c002 - Chapter Two/p0001.jpg" {
 		t.Fatalf("unexpected names/order: %q, %q", zr.File[0].Name, zr.File[1].Name)
 	}
 	if zr.File[0].Method != zip.Store {

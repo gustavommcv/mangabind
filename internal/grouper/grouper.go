@@ -8,6 +8,7 @@ import (
 	"math"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/gustavommcv/mangabind/internal/parser"
 )
@@ -86,9 +87,15 @@ type chapterKey struct {
 // same-chapter conflicts (see Conflict), sorts the remaining chapters within
 // each volume by chapter number then special-chapter suffix, and flattens
 // their pages into a single ordered, collision-free list per volume.
-// Archive names use a "cNNN_pNNNN.ext" scheme, where N is the chapter's
-// position within the volume (not its chapter number) - this guarantees no
-// collision regardless of how the source folders numbered their pages.
+//
+// Each chapter gets its own directory inside the archive, named
+// "cNNN - Title" (N is the chapter's position within the volume, not its
+// chapter number - this guarantees no collision regardless of how the
+// source folders numbered their pages). This isn't just cosmetic: KCC
+// builds its EPUB table of contents from top-level subdirectories when
+// converting a comic archive, using each subdirectory's name as the
+// chapter title - a flat archive produces a single, useless TOC entry for
+// the whole volume. See docs/adr/0006-chapter-directories-for-kcc-toc.md.
 func Group(chapters []Chapter, unparsed []string) Result {
 	byVolume := map[float64][]Chapter{}
 	var unassigned []Chapter
@@ -130,10 +137,11 @@ func Group(chapters []Chapter, unparsed []string) Result {
 
 		var pages []Page
 		for ci, ch := range resolved {
+			chapterDir := chapterDirName(ci+1, ch.Parsed.Title)
 			for pi, name := range ch.Pages {
 				pages = append(pages, Page{
 					SourcePath:  filepath.Join(ch.Dir, name),
-					ArchiveName: fmt.Sprintf("c%03d_p%04d%s", ci+1, pi+1, filepath.Ext(name)),
+					ArchiveName: fmt.Sprintf("%s/p%04d%s", chapterDir, pi+1, filepath.Ext(name)),
 				})
 			}
 		}
@@ -174,6 +182,28 @@ func detectGaps(volume float64, chs []Chapter) []Gap {
 		}
 	}
 	return gaps
+}
+
+// chapterDirName builds the in-archive directory name for the chapter at
+// the given position within its volume. The position prefix guarantees
+// correct ordering and uniqueness even if two chapters share a title; the
+// title (when present) becomes the chapter's title in KCC's generated TOC.
+func chapterDirName(position int, title string) string {
+	base := fmt.Sprintf("c%03d", position)
+	title = sanitizeFolderName(title)
+	if title == "" {
+		return base
+	}
+	return base + " - " + title
+}
+
+// sanitizeFolderName strips characters that would break a single-level
+// directory name inside the archive - a slash in a chapter title would
+// otherwise silently create unintended nested directories.
+func sanitizeFolderName(s string) string {
+	s = strings.ReplaceAll(s, "/", "-")
+	s = strings.ReplaceAll(s, "\\", "-")
+	return strings.TrimSpace(s)
 }
 
 // resolveConflicts splits chs into chapters with a unique (Chapter, Special)
