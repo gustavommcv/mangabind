@@ -77,6 +77,18 @@ mangabind --input /path/to/downloaded/manga [--output /path/to/output]
 `--input`, named `<input folder> (mangabind)` - never inside `--input` itself, since that would
 make the next run see the output folder as a bogus chapter.
 
+Got a whole library instead of just one manga - a folder full of manga folders, each with their
+own chapters? Add `--batch` and point `--input` at the library folder; every immediate subfolder
+is processed as its own manga, independently (one manga having issues never stops the rest):
+
+```bash
+mangabind --input /path/to/manga/library --batch
+```
+
+Other flags: `-i`/`-o` are shorthands for `--input`/`--output`; `--dry-run` (`-n`) shows what would
+be written without writing anything; `--quiet` (`-q`) suppresses routine progress output, keeping
+only warnings/errors; `--version` prints the version. Run `mangabind --help` for the full list.
+
 ## How detection works
 
 Chapter-folder parsing is implemented as a chain of pluggable strategies rather than a single
