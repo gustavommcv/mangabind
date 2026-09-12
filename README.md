@@ -71,6 +71,21 @@ Already have Go and want the dev version instead:
 go install github.com/gustavommcv/mangabind/cmd/mangabind@latest
 ```
 
+### Update
+
+Run the same install command again - it always fetches the latest release and overwrites the
+existing binary in place. `mangabind --version` tells you what you currently have installed.
+
+### Uninstall
+
+Mangabind is a single self-contained binary; there's no installer state to clean up beyond it.
+
+- **macOS/Linux:** `rm ~/.local/bin/mangabind`
+- **Windows:** delete `%LOCALAPPDATA%\Programs\mangabind\mangabind.exe`. The installer added that
+  folder to your user `PATH`; if you'd rather remove that entry too, it's under Settings > System >
+  About > Advanced system settings > Environment Variables > `Path` (User variables).
+- **`go install`:** `rm $(go env GOPATH)/bin/mangabind` (or `%GOPATH%\bin\mangabind.exe` on Windows).
+
 ## Usage
 
 ```bash
