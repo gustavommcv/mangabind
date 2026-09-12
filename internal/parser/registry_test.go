@@ -11,7 +11,9 @@ func TestDefaultRegistry(t *testing.T) {
 		wantOK     bool
 	}{
 		{"Vol.01 Ch.0001 - A Dog and a Chainsaw (en) [Mangastream]", "vol-ch-title", true},
+		{"Volume 1 Chapter 5", "volume-chapter", true},
 		{"Chapter 5", "chapter-only", true},
+		{"012.5", "bare-number", true},
 		{"total garbage that matches nothing 42", "", false},
 	}
 

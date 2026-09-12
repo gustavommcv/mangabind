@@ -16,7 +16,9 @@ func NewRegistry(parsers ...ChapterNameParser) *Registry {
 func DefaultRegistry() *Registry {
 	return NewRegistry(
 		VolChTitleParser{},
+		VolumeChapterParser{},
 		ChapterOnlyParser{},
+		BareNumberParser{},
 	)
 }
 
