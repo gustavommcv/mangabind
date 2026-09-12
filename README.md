@@ -1,7 +1,6 @@
 # Mangabind
 
 [![CI](https://github.com/gustavommcv/mangabind/actions/workflows/ci.yml/badge.svg)](https://github.com/gustavommcv/mangabind/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/gustavommcv/mangabind/branch/main/graph/badge.svg)](https://codecov.io/gh/gustavommcv/mangabind)
 [![Release](https://img.shields.io/github/v/release/gustavommcv/mangabind)](https://github.com/gustavommcv/mangabind/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
