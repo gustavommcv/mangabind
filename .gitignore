@@ -1,6 +1,8 @@
 # Copyrighted manga fixtures used for local/manual testing - never commit these.
 /examples/
 /Examples/
+/output/
+/Output/
 
 # Build output
 /dist/
