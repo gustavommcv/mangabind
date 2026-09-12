@@ -2,6 +2,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -18,45 +19,45 @@ import (
 // "dev" is what a plain `go build`/`go run` produces.
 var version = "dev"
 
+// cliConfig is the parsed result of the command line, kept separate from
+// flag.FlagSet so parseFlags is easy to call directly from tests.
+type cliConfig struct {
+	input, output        string
+	batch, quiet, dryRun bool
+	showVersion          bool
+}
+
 func main() {
-	var input, output string
-	var batch, quiet, dryRun, showVersion bool
+	cfg, fs, err := parseFlags(os.Args[1:])
+	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			os.Exit(0) // usage was already printed by the flag package
+		}
+		os.Exit(2) // ditto - flag.ContinueOnError prints usage on any parse error
+	}
 
-	flag.StringVar(&input, "input", "", "directory to reorganize: a manga's chapters, or (with -batch) a library of manga folders")
-	flag.StringVar(&input, "i", "", "shorthand for -input")
-	flag.StringVar(&output, "output", "", "directory to write the generated .cbz files into (default: a sibling folder next to -input)")
-	flag.StringVar(&output, "o", "", "shorthand for -output")
-	flag.BoolVar(&batch, "batch", false, "treat -input as a library folder: process every immediate subfolder as its own manga")
-	flag.BoolVar(&quiet, "quiet", false, "only print warnings and errors, not routine progress")
-	flag.BoolVar(&quiet, "q", false, "shorthand for -quiet")
-	flag.BoolVar(&dryRun, "dry-run", false, "show what would be written without writing any .cbz files")
-	flag.BoolVar(&dryRun, "n", false, "shorthand for -dry-run")
-	flag.BoolVar(&showVersion, "version", false, "print the version and exit")
-	flag.Usage = printUsage
-	flag.Parse()
-
-	if showVersion {
+	if cfg.showVersion {
 		fmt.Println("mangabind", version)
 		return
 	}
 
-	if input == "" {
-		printUsage()
+	if cfg.input == "" {
+		printUsage(fs)
 		os.Exit(2)
 	}
 
+	output := cfg.output
 	if output == "" {
-		output = defaultOutputDir(input)
-		if !quiet {
+		output = defaultOutputDir(cfg.input)
+		if !cfg.quiet {
 			fmt.Printf("mangabind: no -output given, writing to %s\n", output)
 		}
 	}
 
-	var err error
-	if batch {
-		err = runBatch(input, output, quiet, dryRun)
+	if cfg.batch {
+		err = runBatch(cfg.input, output, cfg.quiet, cfg.dryRun)
 	} else {
-		_, err = processManga(input, output, quiet, dryRun)
+		_, err = processManga(cfg.input, output, cfg.quiet, cfg.dryRun)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "mangabind:", err)
@@ -64,7 +65,34 @@ func main() {
 	}
 }
 
-func printUsage() {
+// parseFlags defines and parses mangabind's flags, including the -i/-o/-q/-n
+// short aliases. It's separate from main, using its own FlagSet rather than
+// the package-level flag.CommandLine, specifically so it can be called
+// directly (and repeatedly) from tests: flag.ContinueOnError makes Parse
+// return errors instead of calling os.Exit, and a fresh FlagSet avoids the
+// "flag redefined" panic a second call to flag.StringVar on flag.CommandLine
+// would cause.
+func parseFlags(args []string) (cliConfig, *flag.FlagSet, error) {
+	fs := flag.NewFlagSet("mangabind", flag.ContinueOnError)
+
+	var cfg cliConfig
+	fs.StringVar(&cfg.input, "input", "", "directory to reorganize: a manga's chapters, or (with -batch) a library of manga folders")
+	fs.StringVar(&cfg.input, "i", "", "shorthand for -input")
+	fs.StringVar(&cfg.output, "output", "", "directory to write the generated .cbz files into (default: a sibling folder next to -input)")
+	fs.StringVar(&cfg.output, "o", "", "shorthand for -output")
+	fs.BoolVar(&cfg.batch, "batch", false, "treat -input as a library folder: process every immediate subfolder as its own manga")
+	fs.BoolVar(&cfg.quiet, "quiet", false, "only print warnings and errors, not routine progress")
+	fs.BoolVar(&cfg.quiet, "q", false, "shorthand for -quiet")
+	fs.BoolVar(&cfg.dryRun, "dry-run", false, "show what would be written without writing any .cbz files")
+	fs.BoolVar(&cfg.dryRun, "n", false, "shorthand for -dry-run")
+	fs.BoolVar(&cfg.showVersion, "version", false, "print the version and exit")
+	fs.Usage = func() { printUsage(fs) }
+
+	err := fs.Parse(args)
+	return cfg, fs, err
+}
+
+func printUsage(fs *flag.FlagSet) {
 	fmt.Fprint(os.Stderr, `mangabind reorganizes a chapter-by-chapter manga download into one .cbz per
 volume, ready for Kindle Comic Converter or any comic/manga reader.
 
@@ -79,7 +107,7 @@ Examples:
 
 Flags:
 `)
-	flag.PrintDefaults()
+	fs.PrintDefaults()
 	fmt.Fprint(os.Stderr, "\nMore info: https://github.com/gustavommcv/mangabind\n")
 }
 

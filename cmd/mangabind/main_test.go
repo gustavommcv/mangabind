@@ -2,6 +2,8 @@ package main
 
 import (
 	"archive/zip"
+	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -97,6 +99,79 @@ func TestProcessMangaDryRunWritesNothing(t *testing.T) {
 	}
 	if countEntries(t, output) != 0 {
 		t.Fatal("dry-run should not have written any files")
+	}
+}
+
+func TestParseFlags(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want cliConfig
+	}{
+		{
+			name: "long flags",
+			args: []string{"-input", "in", "-output", "out", "-batch", "-quiet", "-dry-run"},
+			want: cliConfig{input: "in", output: "out", batch: true, quiet: true, dryRun: true},
+		},
+		{
+			name: "short aliases behave the same as their long form",
+			args: []string{"-i", "in", "-o", "out", "-q", "-n"},
+			want: cliConfig{input: "in", output: "out", quiet: true, dryRun: true},
+		},
+		{
+			name: "version",
+			args: []string{"-version"},
+			want: cliConfig{showVersion: true},
+		},
+		{
+			name: "no args",
+			args: nil,
+			want: cliConfig{},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, _, err := parseFlags(c.args)
+			if err != nil {
+				t.Fatalf("parseFlags(%v) error = %v", c.args, err)
+			}
+			if got != c.want {
+				t.Fatalf("parseFlags(%v) = %+v, want %+v", c.args, got, c.want)
+			}
+		})
+	}
+}
+
+func TestParseFlagsHelp(t *testing.T) {
+	for _, args := range [][]string{{"-h"}, {"-help"}} {
+		_, _, err := parseFlags(args)
+		if !errors.Is(err, flag.ErrHelp) {
+			t.Errorf("parseFlags(%v) error = %v, want flag.ErrHelp", args, err)
+		}
+	}
+}
+
+func TestParseFlagsRejectsUnknownFlag(t *testing.T) {
+	_, _, err := parseFlags([]string{"-not-a-real-flag"})
+	if err == nil {
+		t.Fatal("expected an error for an unrecognized flag")
+	}
+}
+
+func TestUnsupportedFileMessage(t *testing.T) {
+	cases := []struct {
+		name string
+		want string
+	}{
+		{"chapter 5.epub", `found "chapter 5.epub" - .epub chapters aren't supported (only folders of images or .cbz), skipped`},
+		{"chapter 5.pdf", `found "chapter 5.pdf" - .pdf chapters aren't supported (only folders of images or .cbz), skipped`},
+		{"notes.txt", `found unrecognized file, skipped: "notes.txt"`},
+	}
+	for _, c := range cases {
+		if got := unsupportedFileMessage(c.name); got != c.want {
+			t.Errorf("unsupportedFileMessage(%q) = %q, want %q", c.name, got, c.want)
+		}
 	}
 }
 

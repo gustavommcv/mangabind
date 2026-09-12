@@ -118,6 +118,39 @@ func TestWriteFromArchiveSource(t *testing.T) {
 	}
 }
 
+func TestWriteMissingSource(t *testing.T) {
+	dir := t.TempDir()
+	pages := []grouper.Page{
+		{SourcePath: filepath.Join(dir, "does-not-exist.jpg"), ArchiveName: "c001/p0001.jpg"},
+	}
+	out := filepath.Join(dir, "Vol.01.cbz")
+	if err := Write(out, pages); err == nil {
+		t.Fatal("expected an error when a page's source file doesn't exist")
+	}
+}
+
+func TestWriteMissingArchiveEntry(t *testing.T) {
+	dir := t.TempDir()
+	srcCbz := filepath.Join(dir, "source.cbz")
+	sf, err := os.Create(srcCbz)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw := zip.NewWriter(sf)
+	if err := zw.Close(); err != nil { // empty archive, no "01.jpg" entry
+		t.Fatal(err)
+	}
+	sf.Close()
+
+	pages := []grouper.Page{
+		{SourcePath: srcCbz, SourceInArchive: "01.jpg", ArchiveName: "c001/p0001.jpg"},
+	}
+	out := filepath.Join(dir, "Vol.01.cbz")
+	if err := Write(out, pages); err == nil {
+		t.Fatal("expected an error when the requested entry isn't in the source archive")
+	}
+}
+
 func TestVolumeFileName(t *testing.T) {
 	cases := []struct {
 		manga string

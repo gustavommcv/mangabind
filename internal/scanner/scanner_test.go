@@ -74,6 +74,30 @@ func TestPages(t *testing.T) {
 	}
 }
 
+func TestScanNonexistentDir(t *testing.T) {
+	_, _, err := Scan(filepath.Join(t.TempDir(), "does-not-exist"))
+	if err == nil {
+		t.Fatal("expected an error scanning a nonexistent directory")
+	}
+}
+
+func TestPagesNonexistentDir(t *testing.T) {
+	_, err := Pages(filepath.Join(t.TempDir(), "does-not-exist"))
+	if err == nil {
+		t.Fatal("expected an error listing pages in a nonexistent directory")
+	}
+}
+
+func TestPagesInArchiveNotAZip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "not-a-zip.cbz")
+	if err := os.WriteFile(path, []byte("this is not a zip file"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PagesInArchive(path); err == nil {
+		t.Fatal("expected an error reading a corrupt/non-zip .cbz")
+	}
+}
+
 func TestIsIgnorableJunk(t *testing.T) {
 	cases := map[string]bool{
 		".DS_Store":   true,

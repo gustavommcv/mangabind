@@ -1,5 +1,9 @@
 # Mangabind
 
+[![CI](https://github.com/gustavommcv/mangabind/actions/workflows/ci.yml/badge.svg)](https://github.com/gustavommcv/mangabind/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/gustavommcv/mangabind)](https://github.com/gustavommcv/mangabind/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Mangabind reorganizes a chapter-by-chapter manga download (e.g. from
 [HakuNeko](https://github.com/manga-download/hakuneko)) into one `.cbz` per volume, ready to hand
 off to [Kindle Comic Converter](https://github.com/ciromattia/kcc) or any other reader/converter.
