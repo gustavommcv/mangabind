@@ -18,7 +18,13 @@ jobs:
           go-version: "1.23"
       - run: go build ./...
       - run: go vet ./...
-      - run: go test ./...
+      - run: go test ./... -coverprofile=coverage.out
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.out
+          fail_ci_if_error: false
       - name: Check formatting
         if: runner.os != 'Windows'
         run: |
@@ -28,6 +34,17 @@ jobs:
             echo "$fmt_out"
             exit 1
           fi
+
+  golangci-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
 
   goreleaser-check:
     runs-on: ubuntu-latest

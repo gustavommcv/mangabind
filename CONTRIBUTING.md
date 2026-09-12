@@ -11,7 +11,10 @@ go vet ./...
 gofmt -l .   # should print nothing; run `gofmt -w .` to fix
 ```
 
-CI runs the same checks on Windows, macOS, and Linux for every PR.
+CI runs the same checks on Windows, macOS, and Linux for every PR, plus
+[golangci-lint](https://golangci-lint.run/) (config in `.golangci.yml`) and a `goreleaser --snapshot`
+build to catch a broken release config early. Run `golangci-lint run ./...` locally if you have it
+installed.
 
 ## Testing against real manga
 
