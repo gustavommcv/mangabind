@@ -288,11 +288,15 @@ func processManga(input, output, metadataFile string, quiet, dryRun bool) (manga
 		fmt.Println("mangabind: no volumes produced - see warnings below")
 	}
 
-	for _, name := range result.Unparsed {
-		fmt.Fprintf(os.Stderr, "warning: could not parse chapter name, skipped: %q\n", name)
+	for _, line := range summarizeNames("could not parse chapter name, skipped", result.Unparsed, "") {
+		fmt.Fprintln(os.Stderr, "warning:", line)
 	}
-	for _, c := range result.Unassigned {
-		fmt.Fprintf(os.Stderr, "warning: chapter has no volume number, skipped: %q\n", filepath.Base(c.Path))
+	unassignedNames := make([]string, len(result.Unassigned))
+	for i, c := range result.Unassigned {
+		unassignedNames[i] = filepath.Base(c.Path)
+	}
+	for _, line := range summarizeNames("chapter has no volume number, skipped", unassignedNames, "see -metadata-file") {
+		fmt.Fprintln(os.Stderr, "warning:", line)
 	}
 	for _, g := range result.Gaps {
 		fmt.Fprintf(os.Stderr, "warning: volume %v is missing chapter(s) between %v and %v\n", g.Volume, g.After, g.Before)
@@ -306,6 +310,39 @@ func processManga(input, output, metadataFile string, quiet, dryRun bool) (manga
 	}
 
 	return summary, nil
+}
+
+// maxIndividualWarnings caps how many names of the same warning category get
+// printed one by one before summarizeNames collapses the rest into a single
+// line - without it, a manga with hundreds of chapters and no volume
+// information anywhere would print one warning per chapter.
+const maxIndividualWarnings = 10
+
+// summarizeNames turns a list of same-category names into warning lines:
+// each one individually if there are few enough, otherwise the first
+// maxIndividualWarnings plus one line summarizing the rest (with an
+// optional hint pointing at the fix).
+func summarizeNames(label string, names []string, hint string) []string {
+	if len(names) == 0 {
+		return nil
+	}
+	if len(names) <= maxIndividualWarnings {
+		lines := make([]string, len(names))
+		for i, name := range names {
+			lines[i] = fmt.Sprintf("%s: %q", label, name)
+		}
+		return lines
+	}
+
+	lines := make([]string, 0, maxIndividualWarnings+1)
+	for _, name := range names[:maxIndividualWarnings] {
+		lines = append(lines, fmt.Sprintf("%s: %q", label, name))
+	}
+	rest := fmt.Sprintf("... and %d more", len(names)-maxIndividualWarnings)
+	if hint != "" {
+		rest += " (" + hint + ")"
+	}
+	return append(lines, rest)
 }
 
 // unsupportedFileMessage explains why a file found alongside chapter

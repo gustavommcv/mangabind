@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -243,6 +244,43 @@ func TestUnsupportedFileMessage(t *testing.T) {
 			t.Errorf("unsupportedFileMessage(%q) = %q, want %q", c.name, got, c.want)
 		}
 	}
+}
+
+func TestSummarizeNames(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		if got := summarizeNames("no volume", nil, ""); got != nil {
+			t.Fatalf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("at or below the cap: one line per name", func(t *testing.T) {
+		names := []string{"Chapter 1", "Chapter 2"}
+		want := []string{`no volume: "Chapter 1"`, `no volume: "Chapter 2"`}
+		if got := summarizeNames("no volume", names, ""); !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("over the cap: truncated with a summary line", func(t *testing.T) {
+		names := make([]string, 200)
+		for i := range names {
+			names[i] = fmt.Sprintf("Chapter %d", i+1)
+		}
+		got := summarizeNames("no volume", names, "see -metadata-file")
+		if len(got) != maxIndividualWarnings+1 {
+			t.Fatalf("got %d lines, want %d", len(got), maxIndividualWarnings+1)
+		}
+		for i := 0; i < maxIndividualWarnings; i++ {
+			want := fmt.Sprintf("no volume: %q", names[i])
+			if got[i] != want {
+				t.Fatalf("line %d = %q, want %q", i, got[i], want)
+			}
+		}
+		wantLast := "... and 190 more (see -metadata-file)"
+		if got[len(got)-1] != wantLast {
+			t.Fatalf("last line = %q, want %q", got[len(got)-1], wantLast)
+		}
+	})
 }
 
 func TestRunBatchProcessesEveryMangaIndependently(t *testing.T) {
