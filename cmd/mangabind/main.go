@@ -11,6 +11,7 @@ import (
 
 	"github.com/gustavommcv/mangabind/internal/cbz"
 	"github.com/gustavommcv/mangabind/internal/grouper"
+	"github.com/gustavommcv/mangabind/internal/metadata"
 	"github.com/gustavommcv/mangabind/internal/parser"
 	"github.com/gustavommcv/mangabind/internal/scanner"
 )
@@ -22,9 +23,9 @@ var version = "dev"
 // cliConfig is the parsed result of the command line, kept separate from
 // flag.FlagSet so parseFlags is easy to call directly from tests.
 type cliConfig struct {
-	input, output        string
-	batch, quiet, dryRun bool
-	showVersion          bool
+	input, output, metadataFile string
+	batch, quiet, dryRun        bool
+	showVersion                 bool
 }
 
 func main() {
@@ -45,6 +46,11 @@ func main() {
 		printUsage(fs)
 		os.Exit(2)
 	}
+	if cfg.batch && cfg.metadataFile != "" {
+		fmt.Fprintln(os.Stderr, "mangabind: -metadata-file can't be combined with -batch - "+
+			"place a mangabind.json file inside each manga folder instead")
+		os.Exit(2)
+	}
 
 	output := cfg.output
 	if output == "" {
@@ -57,7 +63,7 @@ func main() {
 	if cfg.batch {
 		err = runBatch(cfg.input, output, cfg.quiet, cfg.dryRun)
 	} else {
-		_, err = processManga(cfg.input, output, cfg.quiet, cfg.dryRun)
+		_, err = processManga(cfg.input, output, cfg.metadataFile, cfg.quiet, cfg.dryRun)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "mangabind:", err)
@@ -81,6 +87,7 @@ func parseFlags(args []string) (cliConfig, *flag.FlagSet, error) {
 	fs.StringVar(&cfg.output, "output", "", "directory to write the generated .cbz files into (default: a sibling folder next to -input)")
 	fs.StringVar(&cfg.output, "o", "", "shorthand for -output")
 	fs.BoolVar(&cfg.batch, "batch", false, "treat -input as a library folder: process every immediate subfolder as its own manga")
+	fs.StringVar(&cfg.metadataFile, "metadata-file", "", "local chapter-to-volume mapping to fill in volumes missing from chapter names (not combinable with -batch; see mangabind.json convention)")
 	fs.BoolVar(&cfg.quiet, "quiet", false, "only print warnings and errors, not routine progress")
 	fs.BoolVar(&cfg.quiet, "q", false, "shorthand for -quiet")
 	fs.BoolVar(&cfg.dryRun, "dry-run", false, "show what would be written without writing any .cbz files")
@@ -104,6 +111,7 @@ Examples:
   mangabind -input "D:\Manga\Chainsaw Man"
   mangabind -i "D:\Manga\Chainsaw Man" -o "D:\Volumes"
   mangabind -input "D:\Manga" -batch
+  mangabind -input "D:\Manga\Some Manga" -metadata-file volumes.json
 
 Flags:
 `)
@@ -141,7 +149,9 @@ func runBatch(libraryInput, output string, quiet, dryRun bool) error {
 			fmt.Printf("== %s ==\n", e.Name())
 		}
 
-		summary, err := processManga(mangaPath, output, quiet, dryRun)
+		// No explicit override in batch mode - each manga only picks up its
+		// own mangabind.json convention file, if it has one.
+		summary, err := processManga(mangaPath, output, "", quiet, dryRun)
 		if err != nil {
 			errCount++
 			fmt.Fprintf(os.Stderr, "mangabind: %s: %v\n", e.Name(), err)
@@ -165,8 +175,40 @@ type mangaSummary struct {
 	pages   int
 }
 
-func processManga(input, output string, quiet, dryRun bool) (mangaSummary, error) {
+// metadataConventionFile is the name Mangabind looks for inside a manga's
+// own input folder when -metadata-file isn't given explicitly - see
+// docs/adr/0010-local-metadata-file.md.
+const metadataConventionFile = "mangabind.json"
+
+// resolveMetadataFile picks which metadata file (if any) applies to input:
+// an explicit override always wins; otherwise Mangabind looks for its
+// naming convention right inside the manga's own folder. Returning "" means
+// no metadata file applies - not an error, just nothing to load.
+func resolveMetadataFile(input, explicit string) string {
+	if explicit != "" {
+		return explicit
+	}
+	candidate := filepath.Join(input, metadataConventionFile)
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate
+	}
+	return ""
+}
+
+func processManga(input, output, metadataFile string, quiet, dryRun bool) (mangaSummary, error) {
 	var summary mangaSummary
+
+	var metaMap *metadata.Map
+	if mf := resolveMetadataFile(input, metadataFile); mf != "" {
+		m, err := metadata.Load(mf)
+		if err != nil {
+			return summary, fmt.Errorf("loading metadata file %s: %w", mf, err)
+		}
+		metaMap = m
+		if !quiet {
+			fmt.Printf("mangabind: using metadata file %s\n", mf)
+		}
+	}
 
 	entries, skipped, err := scanner.Scan(input)
 	if err != nil {
@@ -191,6 +233,20 @@ func processManga(input, output string, quiet, dryRun bool) (mangaSummary, error
 		if !ok {
 			unparsed = append(unparsed, e.Name)
 			continue
+		}
+
+		if metaMap != nil {
+			if metaVol, found := metaMap.Lookup(parsed.Chapter, parsed.Special); found {
+				switch {
+				case parsed.Volume == nil:
+					v := metaVol
+					parsed.Volume = &v
+				case *parsed.Volume != metaVol:
+					fmt.Fprintf(os.Stderr,
+						"warning: chapter %v%s: name says volume %v, metadata file says volume %v - keeping the name\n",
+						parsed.Chapter, parsed.Special, *parsed.Volume, metaVol)
+				}
+			}
 		}
 
 		var pages []string

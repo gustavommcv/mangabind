@@ -15,3 +15,4 @@ you need the "why," not just the "what."
 | [0007](0007-cbz-chapter-support.md) | Support `.cbz` chapters; never exit having done nothing without saying so |
 | [0008](0008-simple-binary-releases.md) | Ship raw binaries + install scripts, not Homebrew/Scoop |
 | [0009](0009-cli-conventions-and-batch-mode.md) | Adopt clig.dev CLI conventions; add `--batch` mode |
+| [0010](0010-local-metadata-file.md) | Resolve missing volume numbers from a local metadata file, not a network provider |

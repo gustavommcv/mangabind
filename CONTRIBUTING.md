@@ -46,6 +46,12 @@ Mangabind also doesn't try to identify or reposition a "cover" page - see
 [docs/adr/0005-drop-cover-detection.md](docs/adr/0005-drop-cover-detection.md) for why. PRs adding
 cover-detection heuristics will be redirected too.
 
+Mangabind resolves missing volume numbers from a local metadata file only (`internal/metadata`) -
+it never talks to the network. PRs adding a MangaDex (or any other) client, a `MetadataProvider`
+abstraction, or manga/work identification will be redirected; see
+[docs/adr/0010-local-metadata-file.md](docs/adr/0010-local-metadata-file.md) for why. A tool that
+*generates* a metadata file from an external source is welcome as its own separate project.
+
 ## Language
 
 Code, comments, commit messages, and docs are all in English, to keep the project approachable

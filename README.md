@@ -108,6 +108,31 @@ Other flags: `-i`/`-o` are shorthands for `--input`/`--output`; `--dry-run` (`-n
 be written without writing anything; `--quiet` (`-q`) suppresses routine progress output, keeping
 only warnings/errors; `--version` prints the version. Run `mangabind --help` for the full list.
 
+## When chapter names don't carry a volume number
+
+Some sources only name chapters `Chapter 1`, `Chapter 2`, ... with no volume information at all -
+Mangabind has no way to know which volume each one belongs to, so those chapters are reported and
+skipped rather than guessed into the wrong place. Fix that with a small local metadata file:
+
+```json
+{
+  "schema_version": 1,
+  "volumes": [
+    { "number": "1", "chapters": ["1-7"] },
+    { "number": "2", "chapters": ["8-16", "8.5"] }
+  ]
+}
+```
+
+Save it as `mangabind.json` inside the manga's own input folder and Mangabind picks it up
+automatically (or pass `--metadata-file path/to/file.json` explicitly - not combinable with
+`--batch`, since each manga in a library needs its own file). `chapters` entries can be a single
+number (`"8.5"`, or `"21x1"` for a bonus/special chapter) or an inclusive range (`"1-7"`). A volume
+number already present in a chapter's own name always wins; the file only fills in what's missing.
+Mangabind never fetches this data itself - see
+[docs/adr/0010-local-metadata-file.md](docs/adr/0010-local-metadata-file.md) for why, and where
+generating this file from a source like MangaDex should live instead.
+
 ## How detection works
 
 Chapter-folder parsing is implemented as a chain of pluggable strategies rather than a single

@@ -72,6 +72,12 @@ func isIgnorableJunk(name string) bool {
 	switch name {
 	case ".DS_Store", "Thumbs.db", "desktop.ini":
 		return true
+	case "mangabind.json":
+		// Mangabind's own optional local chapter->volume metadata file (see
+		// internal/metadata) - it lives right next to the chapters it
+		// describes, not off in some other directory, so it must never be
+		// mistaken for an unrecognized chapter file.
+		return true
 	}
 	return false
 }

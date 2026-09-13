@@ -65,7 +65,7 @@ func TestProcessMangaEndToEnd(t *testing.T) {
 	makeChapter(t, input, "Vol.01 Ch.0002 - Beta (en) [Group]", 3)
 
 	output := filepath.Join(root, "out")
-	summary, err := processManga(input, output, true, false)
+	summary, err := processManga(input, output, "", true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestProcessMangaDryRunWritesNothing(t *testing.T) {
 	makeChapter(t, input, "Vol.01 Ch.0001 - Alpha (en) [Group]", 1)
 
 	output := filepath.Join(root, "out")
-	summary, err := processManga(input, output, true, true /* dryRun */)
+	summary, err := processManga(input, output, "", true, true /* dryRun */)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,6 +99,71 @@ func TestProcessMangaDryRunWritesNothing(t *testing.T) {
 	}
 	if countEntries(t, output) != 0 {
 		t.Fatal("dry-run should not have written any files")
+	}
+}
+
+func writeMetadataFile(t *testing.T, dir, content string) string {
+	t.Helper()
+	path := filepath.Join(dir, "mangabind.json")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestProcessMangaMetadataFillsMissingVolume(t *testing.T) {
+	root := t.TempDir()
+	input := filepath.Join(root, "Some Manga")
+	// "Chapter N" carries no volume on its own - see ChapterOnlyParser.
+	makeChapter(t, input, "Chapter 1", 1)
+	makeChapter(t, input, "Chapter 2", 1)
+	makeChapter(t, input, "Chapter 8", 1)
+	writeMetadataFile(t, input, `{
+		"schema_version": 1,
+		"volumes": [
+			{"number": "1", "chapters": ["1-2"]},
+			{"number": "2", "chapters": ["8"]}
+		]
+	}`)
+
+	output := filepath.Join(root, "out")
+	// No explicit -metadata-file: relies on the mangabind.json convention.
+	summary, err := processManga(input, output, "", true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.volumes != 2 {
+		t.Fatalf("summary = %+v, want 2 volumes (metadata should have resolved them)", summary)
+	}
+	for _, want := range []string{"Some Manga - Vol.01.cbz", "Some Manga - Vol.02.cbz"} {
+		if _, err := os.Stat(filepath.Join(output, want)); err != nil {
+			t.Errorf("expected %s to exist: %v", want, err)
+		}
+	}
+}
+
+func TestProcessMangaMetadataNeverOverridesFilename(t *testing.T) {
+	root := t.TempDir()
+	input := filepath.Join(root, "Some Manga")
+	makeChapter(t, input, "Vol.01 Ch.0001 - Alpha (en) [Group]", 1)
+	metaPath := writeMetadataFile(t, root, `{
+		"schema_version": 1,
+		"volumes": [{"number": "2", "chapters": ["1"]}]
+	}`)
+
+	output := filepath.Join(root, "out")
+	summary, err := processManga(input, output, metaPath, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.volumes != 1 {
+		t.Fatalf("summary = %+v, want 1 volume", summary)
+	}
+	// The filename said volume 1; metadata disagreeing (volume 2) must not
+	// change that - only warn (checked manually via -v; not asserted here
+	// since it goes to stderr, not the return value).
+	if _, err := os.Stat(filepath.Join(output, "Some Manga - Vol.01.cbz")); err != nil {
+		t.Errorf("expected the filename's volume (1) to win: %v", err)
 	}
 }
 
@@ -122,6 +187,11 @@ func TestParseFlags(t *testing.T) {
 			name: "version",
 			args: []string{"-version"},
 			want: cliConfig{showVersion: true},
+		},
+		{
+			name: "metadata file",
+			args: []string{"-input", "in", "-metadata-file", "volumes.json"},
+			want: cliConfig{input: "in", metadataFile: "volumes.json"},
 		},
 		{
 			name: "no args",
