@@ -153,10 +153,11 @@ func issue(severity, code, stage, message string) machineIssue {
 
 func (r *mangaReport) addIssue(value machineIssue) {
 	r.Issues = append(r.Issues, value)
-	if value.Severity == "error" {
+	switch value.Severity {
+	case "error":
 		r.Summary.Errors++
 		r.Status = "failed"
-	} else if value.Severity == "warning" {
+	case "warning":
 		r.Summary.Warnings++
 		if r.Status == "completed" {
 			r.Status = "completed_with_warnings"
@@ -166,10 +167,11 @@ func (r *mangaReport) addIssue(value machineIssue) {
 
 func (r *machineReport) addIssue(value machineIssue) {
 	r.Issues = append(r.Issues, value)
-	if value.Severity == "error" {
+	switch value.Severity {
+	case "error":
 		r.Summary.Errors++
 		r.Status = "failed"
-	} else if value.Severity == "warning" {
+	case "warning":
 		r.Summary.Warnings++
 		if r.Status == "completed" {
 			r.Status = "completed_with_warnings"

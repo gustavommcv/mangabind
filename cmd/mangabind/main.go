@@ -58,14 +58,14 @@ func runCLI(args []string, stdout, stderr io.Writer) int {
 			ToolVersion:     version,
 			Capabilities:    []string{"report"},
 		}); err != nil {
-			fmt.Fprintln(stderr, "mangabind: writing protocol information:", err)
+			printlnTo(stderr, "mangabind: writing protocol information:", err)
 			return 1
 		}
 		return 0
 	}
 
 	if cfg.showVersion {
-		fmt.Fprintln(stdout, "mangabind", version)
+		printlnTo(stdout, "mangabind", version)
 		return 0
 	}
 
@@ -91,7 +91,7 @@ func runCLI(args []string, stdout, stderr io.Writer) int {
 			report.addIssue(value)
 			_ = writeMachineJSON(stdout, report)
 		} else {
-			fmt.Fprintln(stderr, "mangabind:", message)
+			printlnTo(stderr, "mangabind:", message)
 		}
 		return 2
 	}
@@ -100,14 +100,14 @@ func runCLI(args []string, stdout, stderr io.Writer) int {
 	if output == "" {
 		output = defaultOutputDir(cfg.input)
 		if !cfg.quiet && !cfg.json {
-			fmt.Fprintf(stdout, "mangabind: no -output given, writing to %s\n", output)
+			printfTo(stdout, "mangabind: no -output given, writing to %s\n", output)
 		}
 	}
 
 	if cfg.json {
 		report, err := runMachine(cfg, output)
 		if writeErr := writeMachineJSON(stdout, report); writeErr != nil {
-			fmt.Fprintln(stderr, "mangabind: writing JSON report:", writeErr)
+			printlnTo(stderr, "mangabind: writing JSON report:", writeErr)
 			return 1
 		}
 		if err != nil {
@@ -122,7 +122,7 @@ func runCLI(args []string, stdout, stderr io.Writer) int {
 		_, err = processMangaWithOutput(cfg.input, output, cfg.metadataFile, cfg.quiet, cfg.dryRun, stdout, stderr)
 	}
 	if err != nil {
-		fmt.Fprintln(stderr, "mangabind:", err)
+		printlnTo(stderr, "mangabind:", err)
 		return 1
 	}
 	return 0
@@ -142,6 +142,20 @@ func modeFor(dryRun bool) string {
 		return "plan"
 	}
 	return "execute"
+}
+
+// Human-readable output is best-effort. Machine-readable output uses
+// writeMachineJSON, which reports write failures to callers.
+func printTo(writer io.Writer, values ...any) {
+	_, _ = fmt.Fprint(writer, values...)
+}
+
+func printfTo(writer io.Writer, format string, values ...any) {
+	_, _ = fmt.Fprintf(writer, format, values...)
+}
+
+func printlnTo(writer io.Writer, values ...any) {
+	_, _ = fmt.Fprintln(writer, values...)
 }
 
 // parseFlags defines and parses mangabind's flags, including the -i/-o/-q/-n
@@ -180,7 +194,7 @@ func parseFlagsWithOutput(args []string, output io.Writer) (cliConfig, *flag.Fla
 }
 
 func printUsage(fs *flag.FlagSet) {
-	fmt.Fprint(fs.Output(), `mangabind reorganizes a chapter-by-chapter manga download into one .cbz per
+	printTo(fs.Output(), `mangabind reorganizes a chapter-by-chapter manga download into one .cbz per
 volume, ready for Kindle Comic Converter or any comic/manga reader.
 
 Usage:
@@ -196,7 +210,7 @@ Examples:
 Flags:
 `)
 	fs.PrintDefaults()
-	fmt.Fprint(fs.Output(), "\nMore info: https://github.com/gustavommcv/mangabind\n")
+	printTo(fs.Output(), "\nMore info: https://github.com/gustavommcv/mangabind\n")
 }
 
 // defaultOutputDir picks a sibling directory next to input, named after it,
@@ -230,7 +244,7 @@ func runBatchWithOutput(libraryInput, output string, quiet, dryRun bool, stdout,
 		mangaCount++
 		mangaPath := filepath.Join(libraryInput, e.Name())
 		if !quiet {
-			fmt.Fprintf(stdout, "== %s ==\n", e.Name())
+			printfTo(stdout, "== %s ==\n", e.Name())
 		}
 
 		// No explicit override in batch mode - each manga only picks up its
@@ -238,14 +252,14 @@ func runBatchWithOutput(libraryInput, output string, quiet, dryRun bool, stdout,
 		summary, err := processMangaWithOutput(mangaPath, output, "", quiet, dryRun, stdout, stderr)
 		if err != nil {
 			errCount++
-			fmt.Fprintf(stderr, "mangabind: %s: %v\n", e.Name(), err)
+			printfTo(stderr, "mangabind: %s: %v\n", e.Name(), err)
 			continue
 		}
 		totalVolumes += summary.volumes
 		totalPages += summary.pages
 	}
 
-	fmt.Fprintf(stdout, "mangabind: processed %d manga, %d volume(s), %d page(s) total\n", mangaCount, totalVolumes, totalPages)
+	printfTo(stdout, "mangabind: processed %d manga, %d volume(s), %d page(s) total\n", mangaCount, totalVolumes, totalPages)
 	if errCount > 0 {
 		return fmt.Errorf("%d of %d manga had errors, see above", errCount, mangaCount)
 	}
@@ -310,7 +324,7 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, hum
 		}
 		metaMap = m
 		if human && !quiet {
-			fmt.Fprintf(stdout, "mangabind: using metadata file %s\n", mf)
+			printfTo(stdout, "mangabind: using metadata file %s\n", mf)
 		}
 	}
 
@@ -328,7 +342,7 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, hum
 	}
 	if len(entries) == 0 {
 		if human && !quiet {
-			fmt.Fprintf(stdout, "mangabind: no chapter folders or .cbz files found in %s\n", input)
+			printfTo(stdout, "mangabind: no chapter folders or .cbz files found in %s\n", input)
 		}
 		value := issue("warning", "no_chapters_found", "inspect", "No chapter folders or CBZ files were found.")
 		value.Manga = mangaName
@@ -340,7 +354,7 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, hum
 	for _, name := range skipped {
 		message := unsupportedFileMessage(name)
 		if human {
-			fmt.Fprintln(stderr, "warning:", message)
+			printlnTo(stderr, "warning:", message)
 		}
 		value := issue("warning", "unsupported_input_file", "inspect", message)
 		value.Manga = mangaName
@@ -402,7 +416,7 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, hum
 				case *parsed.Volume != metaVol:
 					unit.MetadataAssignment.Status = "ignored_conflict"
 					if human {
-						fmt.Fprintf(stderr,
+						printfTo(stderr,
 							"warning: chapter %v%s: name says volume %v, metadata file says volume %v - keeping the name\n",
 							parsed.Chapter, parsed.Special, *parsed.Volume, metaVol)
 					}
@@ -464,7 +478,7 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, hum
 		}
 		if dryRun {
 			if human {
-				fmt.Fprintf(stdout, "would write %s (%d pages)\n", outPath, len(vol.Pages))
+				printfTo(stdout, "would write %s (%d pages)\n", outPath, len(vol.Pages))
 			}
 		} else {
 			if err := cbz.Write(outPath, vol.Pages); err != nil {
@@ -482,7 +496,7 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, hum
 			}
 			volume.Written = true
 			if human && !quiet {
-				fmt.Fprintf(stdout, "wrote %s (%d pages)\n", outPath, len(vol.Pages))
+				printfTo(stdout, "wrote %s (%d pages)\n", outPath, len(vol.Pages))
 			}
 		}
 		report.Volumes = append(report.Volumes, volume)
@@ -491,7 +505,7 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, hum
 	}
 	if len(result.Volumes) == 0 {
 		if human {
-			fmt.Fprintln(stdout, "mangabind: no volumes produced - see warnings below")
+			printlnTo(stdout, "mangabind: no volumes produced - see warnings below")
 		}
 		value := issue("warning", "no_volumes_produced", "group", "No volumes could be produced from the inspected chapters.")
 		value.Manga = mangaName
@@ -500,7 +514,7 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, hum
 
 	for _, line := range summarizeNames("could not parse chapter name, skipped", result.Unparsed, "") {
 		if human {
-			fmt.Fprintln(stderr, "warning:", line)
+			printlnTo(stderr, "warning:", line)
 		}
 	}
 	for _, name := range result.Unparsed {
@@ -521,7 +535,7 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, hum
 	}
 	for _, line := range summarizeNames("chapter has no volume number, skipped", unassignedNames, "see -metadata-file") {
 		if human {
-			fmt.Fprintln(stderr, "warning:", line)
+			printlnTo(stderr, "warning:", line)
 		}
 	}
 	for _, c := range result.Unassigned {
@@ -535,7 +549,7 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, hum
 	}
 	for _, g := range result.Gaps {
 		if human {
-			fmt.Fprintf(stderr, "warning: volume %v is missing chapter(s) between %v and %v\n", g.Volume, g.After, g.Before)
+			printfTo(stderr, "warning: volume %v is missing chapter(s) between %v and %v\n", g.Volume, g.After, g.Before)
 		}
 		value := issue("warning", "chapter_gap", "group", fmt.Sprintf("Volume %v is missing chapters between %v and %v.", g.Volume, g.After, g.Before))
 		value.Manga = mangaName
@@ -544,10 +558,10 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, hum
 	}
 	for _, c := range result.Conflicts {
 		if human {
-			fmt.Fprintf(stderr, "warning: volume %v chapter %v%s has %d conflicting sources, all skipped:\n",
+			printfTo(stderr, "warning: volume %v chapter %v%s has %d conflicting sources, all skipped:\n",
 				c.Volume, c.Chapter, c.Special, len(c.Sources))
 			for _, s := range c.Sources {
-				fmt.Fprintf(stderr, "  - %q\n", filepath.Base(s))
+				printfTo(stderr, "  - %q\n", filepath.Base(s))
 			}
 		}
 		chapter := c.Chapter
