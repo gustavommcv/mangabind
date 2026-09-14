@@ -108,6 +108,23 @@ Other flags: `-i`/`-o` are shorthands for `--input`/`--output`; `--dry-run` (`-n
 be written without writing anything; `--quiet` (`-q`) suppresses routine progress output, keeping
 only warnings/errors; `--version` prints the version. Run `mangabind --help` for the full list.
 
+### Machine-readable integration
+
+`--json` adds a versioned machine report without changing the existing human output mode. Combine it
+with `--dry-run` to inspect every chapter, parser result, metadata assignment, warning, conflict,
+gap, and intended output without writing files; omit `--dry-run` to execute and report which outputs
+were written:
+
+```bash
+mangabind --input "/path/to/manga" --output "/path/to/volumes" --dry-run --json
+mangabind --input "/path/to/manga" --output "/path/to/volumes" --json
+```
+
+`mangabind --protocol-version` returns the compatibility handshake used by GUI consumers. See the
+[machine protocol v1 specification](docs/machine-protocol-v1.md) and
+[ADR 0011](docs/adr/0011-versioned-machine-report.md). Scripts must check `protocol_version` rather
+than infer compatibility from the release version.
+
 ## When chapter names don't carry a volume number
 
 Some sources only name chapters `Chapter 1`, `Chapter 2`, ... with no volume information at all -
