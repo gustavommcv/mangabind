@@ -19,7 +19,7 @@ installed.
 ## Testing against real manga
 
 `testdata/` holds small synthetic fixtures (empty or placeholder files, real folder/file *names*)
-that are committed and used by `go test`. If you have real manga downloaded via HakuNeko, drop it
+that are committed and used by `go test`. If you have real manga folders or CBZ files, drop them
 under `examples/` at the repo root - that directory is git-ignored (it's copyrighted content) and
 is only for manual local verification, never for automated tests.
 
@@ -47,7 +47,7 @@ Mangabind also doesn't try to identify or reposition a "cover" page - see
 cover-detection heuristics will be redirected too.
 
 Mangabind resolves missing volume numbers from a local metadata file only (`internal/metadata`) -
-it never talks to the network. PRs adding a MangaDex (or any other) client, a `MetadataProvider`
+it never talks to the network. PRs adding an external metadata API (or any other) client, a `MetadataProvider`
 abstraction, or manga/work identification will be redirected; see
 [docs/adr/0010-local-metadata-file.md](docs/adr/0010-local-metadata-file.md) for why. A tool that
 *generates* a metadata file from an external source is welcome as its own separate project.

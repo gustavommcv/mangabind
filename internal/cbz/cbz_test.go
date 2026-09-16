@@ -66,7 +66,7 @@ func TestWrite(t *testing.T) {
 func TestWriteFromArchiveSource(t *testing.T) {
 	dir := t.TempDir()
 
-	// A source .cbz, as if downloaded directly by HakuNeko in that format.
+	// A source .cbz containing a chapter archive.
 	srcCbz := filepath.Join(dir, "source-chapter.cbz")
 	sf, err := os.Create(srcCbz)
 	if err != nil {

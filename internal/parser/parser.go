@@ -1,4 +1,4 @@
-// Package parser turns HakuNeko-style chapter folder names into structured
+// Package parser turns raw chapter folder names into structured
 // data. Naming conventions vary even within a single manga (see
 // docs/adr/0003-pluggable-chapter-parsing.md), so parsing is a chain of
 // strategies rather than one fixed pattern.

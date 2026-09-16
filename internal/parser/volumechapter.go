@@ -7,10 +7,9 @@ import (
 
 // Matches spelled-out "Volume N Chapter M" / "Vol 1 - Ch. 005" and close
 // variants - less strict about dots/dashes than VolChTitleParser, which only
-// matches the abbreviated "Vol.NN Ch.NNNN" form. Real HakuNeko users have
+// matches the abbreviated "Vol.NN Ch.NNNN" form. Users have
 // reported exactly this shape ("Vol 1 Chapter 5") mixed in with other
-// conventions for the same manga (see
-// https://github.com/manga-download/hakuneko/issues/6632, cited in
+// conventions for the same manga (cited in
 // docs/adr/0003-pluggable-chapter-parsing.md). This pattern is a superset of
 // VolChTitleParser's - registering VolChTitleParser first keeps it the
 // authority for its own exact syntax, but the overlap is harmless since both

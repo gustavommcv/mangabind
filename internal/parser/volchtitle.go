@@ -13,7 +13,7 @@ var volChTitleRe = regexp.MustCompile(
 )
 
 // VolChTitleParser recognizes the "Vol.NN Ch.NNNN - Title (lang) [Group]"
-// convention, as used by e.g. HakuNeko's Mangastream-sourced downloads.
+// convention, commonly used by scan releases.
 type VolChTitleParser struct{}
 
 func (VolChTitleParser) Name() string { return "vol-ch-title" }

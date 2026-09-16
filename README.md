@@ -4,21 +4,20 @@
 [![Release](https://img.shields.io/github/v/release/gustavommcv/mangabind)](https://github.com/gustavommcv/mangabind/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Mangabind reorganizes a chapter-by-chapter manga download (e.g. from
-[HakuNeko](https://github.com/manga-download/hakuneko)) into one `.cbz` per volume, ready to hand
-off to [Kindle Comic Converter](https://github.com/ciromattia/kcc) or any other reader/converter.
+Mangabind reorganizes chapter-by-chapter manga folders or archives into one `.cbz` per volume, ready to hand
+off to [Kindle Comic Converter](https://github.com/ciromattia/kcc), mangapress, or any other reader/converter.
 
 ```
-HakuNeko (downloads chapter by chapter)
+Raw chapters (folder or .cbz per chapter)
     -> Mangabind (groups chapters into volumes, writes .cbz)
-    -> KCC (image processing: resize, format conversion, ...)
+    -> KCC / mangapress (image processing: resize, format conversion, ...)
     -> your reader (KOReader, Kindle, ...)
 ```
 
 ## The problem
 
-HakuNeko downloads each chapter as its own unit - either a folder of loose images, or (if you pick
-that download format) a `.cbz` file - with pages numbered from `001` in every one. Two things make
+Chapter collections often have each chapter as its own unit - either a folder of loose images, or (if you have
+that format) a `.cbz` file - with pages numbered from `001` in every one. Two things make
 turning that into per-volume archives non-trivial:
 
 - **Name collisions** - every chapter restarts page numbering, so chapters can't just be merged.
@@ -27,7 +26,7 @@ turning that into per-volume archives non-trivial:
   ...). Detection has to handle a mix of conventions within one input folder.
 
 Mangabind accepts a mix of chapter folders and `.cbz` chapter files in the same input directory.
-HakuNeko's other two download formats, `.epub` and `.pdf`, aren't supported - those are already
+Other document formats, `.epub` and `.pdf`, aren't supported - those are already
 finished reading documents rather than raw scans, and merging them correctly would mean
 re-implementing a meaningful part of an EPUB/PDF assembler rather than reorganizing files (see
 [docs/adr/0007-cbz-chapter-support.md](docs/adr/0007-cbz-chapter-support.md)). Mangabind reports
@@ -148,7 +147,7 @@ number (`"8.5"`, or `"21x1"` for a bonus/special chapter) or an inclusive range 
 number already present in a chapter's own name always wins; the file only fills in what's missing.
 Mangabind never fetches this data itself - see
 [docs/adr/0010-local-metadata-file.md](docs/adr/0010-local-metadata-file.md) for why, and where
-generating this file from a source like MangaDex should live instead.
+generating this file from an external metadata API should live instead.
 
 ## How detection works
 
