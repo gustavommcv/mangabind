@@ -680,7 +680,7 @@ func summarizeNames(label string, names []string, hint string) []string {
 }
 
 // unsupportedFileMessage explains why a file found alongside chapter
-// folders/.cbz files wasn't treated as a chapter - naming the two HakuNeko
+// folders/.cbz files wasn't treated as a chapter - naming the two
 // download formats Mangabind doesn't support explicitly, so the user knows
 // this isn't a bug, rather than getting no feedback at all.
 func unsupportedFileMessage(name string) string {

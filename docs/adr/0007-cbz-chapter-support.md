@@ -9,10 +9,10 @@ Accepted
 ## Context
 
 A user testing Mangabind hit a case where the tool ran, exited successfully, and printed
-*nothing at all* - no volume written, no warning, nothing. The cause: HakuNeko lets you choose
-the download format per manga - "Folder with Images" (Mangabind's assumed input so far), or
+*nothing at all* - no volume written, no warning, nothing. The cause: manga collections may contain
+various chapter formats - "Folder with Images" (Mangabind's assumed input so far), or
 "Comic Book Archive (*.cbz)", "E-Book Publication (*.epub)", "Portable Document Format (*.pdf)".
-They had picked ".cbz", so the input directory contained one `.cbz` file per chapter instead of
+They had .cbz files, so the input directory contained one `.cbz` file per chapter instead of
 one subfolder per chapter. `scanner.Scan` only ever looked at directories
 (`if !e.IsDir() { continue }`), so every file was silently skipped, every downstream stage
 received an empty list, and nothing in `cmd/mangabind` ever printed - not even an error, since an
@@ -31,8 +31,7 @@ navigation; a PDF has its own page/content-stream structure). Correctly merging 
 per-chapter documents into one coherent volume means re-implementing a meaningful chunk of an
 EPUB or PDF assembler - reconciling internal IDs, manifests, and navigation across files - which
 is a fundamentally different and much larger problem than reorganizing raw images. It also isn't
-really Mangabind's problem to solve: choosing ".epub"/".pdf" at download time means HakuNeko (or
-the source site) already did the "turn scans into a reading document" step Mangabind is supposed
+really Mangabind's problem to solve: an `.epub` or `.pdf` has already completed the "turn scans into a reading document" step Mangabind is supposed
 to hand off to KCC. Supporting it would mean either adding real third-party dependencies (no PDF
 support exists in Go's standard library) or reimplementing EPUB internals - both push against the
 project's stated goals: stay single-purpose, keep the dependency list at zero (ADR 0002).
@@ -54,7 +53,7 @@ project's stated goals: stay single-purpose, keep the dependency list at zero (A
 
 ## Consequences
 
-Mangabind now supports both of HakuNeko's "raw scan" download formats. Someone who picks `.epub`
+Mangabind now supports both folder and `.cbz` raw chapter formats. Someone who inputs `.epub`
 or `.pdf` gets a clear, specific reason why nothing happened rather than silence - and someone
 whose input directory turns out to be entirely empty or unusable gets the same. `.cbz`-per-chapter
 required no new dependency; `.epub`/`.pdf` support remains deliberately out of scope.

@@ -23,7 +23,7 @@ func TestLoadAndLookup(t *testing.T) {
 			{"number": "1", "chapters": ["1-7"]},
 			{"number": "2", "chapters": ["8-16", "8.5", "21x1"]}
 		],
-		"source": {"provider": "mangadex", "id": "abc123"}
+		"source": {"provider": "external", "id": "abc123"}
 	}`)
 
 	m, err := Load(path)

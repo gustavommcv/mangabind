@@ -10,22 +10,20 @@ Accepted
 
 Chapter folder names are not consistent, even within a single manga. This isn't hypothetical:
 
-- HakuNeko names each chapter folder from a user-configurable template (`%M%`, `%VOL%`, `%CH%`,
-  `%C%`; a `%LANG%` variable has been requested but doesn't exist yet), so the same manga
-  downloaded at different times, or by different users, can produce different folder-name shapes.
-  See [hakuneko#4809](https://github.com/manga-download/hakuneko/issues/4809).
-- Real HakuNeko users report chapters "all mixed up" within one manga because different sources
+- Chapter archives often use configurable naming templates (`%M%`, `%VOL%`, `%CH%`,
+  `%C%`), so the same manga
+  saved at different times, or by different sources, can produce different folder-name shapes.
+- Real collections frequently have chapters "all mixed up" within one manga because different sources
   produced folder names like `Vol 1 Chapter 5`, `Chapter 6`, and `Bonus 1` for the same series.
-  See [hakuneko#6632](https://github.com/manga-download/hakuneko/issues/6632).
 - The wider scanlation community has its own long-standing naming convention
   (`Title [lang] - c###-###x# (mag/web/v##) [Extra] [Group]{revision}`, see
   [Daiz/manga-naming-scheme](https://github.com/Daiz/manga-naming-scheme)), which uses `x#`/`y#`/`z#`
   suffixes for special/bonus chapters, not just decimals - our chapter-number model needs to allow
   for that, not just `float64` decimals like `12.5`.
-- Language shows up as a separate token (e.g. MangaDex's `pt-br`, `zh-hk`, `ja-ro`) that must not
+- Language shows up as a separate token (e.g. `pt-br`, `zh-hk`, `ja-ro`) that must not
   be confused with title, group, or chapter title during parsing.
 
-Our own `examples/` fixture (Chainsaw Man vol. 1, HakuNeko/Mangastream naming) confirms the
+Our own `examples/` fixture (Chainsaw Man vol. 1, standard scan naming) confirms the
 `Vol.NN Ch.NNNN - Title (lang) [Group]` shape works for one real case, but we should not assume
 it's the only one we'll ever see.
 

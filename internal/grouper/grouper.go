@@ -15,7 +15,7 @@ import (
 
 // Chapter is a parsed chapter unit together with its page list, ready to be
 // grouped into a Volume. A chapter is either a folder of loose images or a
-// .cbz archive (HakuNeko supports downloading either way); see
+// .cbz archive; see
 // docs/adr/0007-cbz-chapter-support.md.
 type Chapter struct {
 	Parsed parser.ParsedChapter

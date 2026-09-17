@@ -2,7 +2,7 @@
 // used to fill in the volume number for chapters whose folder/file name
 // doesn't carry one (see docs/adr/0010-local-metadata-file.md). It never
 // talks to the network - producing this file from an external source
-// (MangaDex or anything else) is deliberately someone else's job.
+// (an external API or anything else) is deliberately someone else's job.
 package metadata
 
 import (

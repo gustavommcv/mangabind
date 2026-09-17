@@ -1,7 +1,6 @@
 // Package scanner lists the chapter units and page files that make up a
-// downloaded manga, without touching their content. A "chapter unit" is
-// either a folder of loose image files (HakuNeko's default download
-// format) or a .cbz file (HakuNeko's "Comic Book Archive" format) - both
+// manga folder, without touching their content. A "chapter unit" is
+// either a folder of loose image files or a .cbz file - both
 // are treated as equally valid chapter sources.
 package scanner
 
@@ -27,7 +26,7 @@ type ChapterEntry struct {
 // chapter folder, a .cbz chapter archive, or - for anything else other than
 // a few known junk files (.DS_Store, Thumbs.db, desktop.ini) - an
 // unsupported file reported in skipped rather than silently dropped. This
-// is what lets the caller warn about e.g. HakuNeko's .epub/.pdf download
+// is what lets the caller warn about unsupported .epub/.pdf document
 // formats instead of producing no output at all. Results are sorted in
 // natural order for stable, deterministic output; this is not yet
 // volume/chapter order, which is the grouper package's job once names have
