@@ -17,3 +17,4 @@ you need the "why," not just the "what."
 | [0009](0009-cli-conventions-and-batch-mode.md) | ~~Adopt clig.dev CLI conventions; add `--batch` mode~~ - superseded by 0011 |
 | [0010](0010-local-metadata-file.md) | Resolve missing volume numbers from a local metadata file, not a network provider |
 | [0011](0011-versioned-machine-report.md) | Add a versioned JSON planning and execution report; preserve ADR 0009's human CLI behavior |
+| [0012](0012-combine-series-into-one-volume.md) | Add `-combine`: write a whole series as one `.cbz`, still reporting each volume's chapters |

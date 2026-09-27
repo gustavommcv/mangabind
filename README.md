@@ -103,6 +103,17 @@ is processed as its own manga, independently (one manga having issues never stop
 mangabind --input /path/to/manga/library --batch
 ```
 
+Want the whole series as one file instead of one per volume - useful for a very long series where
+even one `.cbz` per volume is still a lot of files? Add `--combine`. Volume boundaries are computed
+exactly the same way; only the output is one `.cbz` instead of many, with each volume nested as an
+extra directory above its chapters (see [ADR 0012](docs/adr/0012-combine-series-into-one-volume.md)
+for why - it's what lets a downstream tool build a table of contents with both volumes and chapters
+in it):
+
+```bash
+mangabind --input /path/to/manga --combine
+```
+
 Other flags: `-i`/`-o` are shorthands for `--input`/`--output`; `--dry-run` (`-n`) shows what would
 be written without writing anything; `--quiet` (`-q`) suppresses routine progress output, keeping
 only warnings/errors; `--version` prints the version. Run `mangabind --help` for the full list.

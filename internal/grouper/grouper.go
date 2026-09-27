@@ -8,6 +8,7 @@ import (
 	"math"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/gustavommcv/mangabind/internal/parser"
@@ -170,6 +171,45 @@ func Group(chapters []Chapter, unparsed []string) Result {
 		Gaps:       allGaps,
 		Conflicts:  allConflicts,
 	}
+}
+
+// CombineVolumes flattens every volume's already-grouped pages into a single
+// collision-free, correctly ordered page list for one combined .cbz, with
+// each volume nested as one more directory level above its chapters -
+// "<volume dir>/<chapter dir>/pNNNN.ext" instead of a normal volume's
+// "<chapter dir>/pNNNN.ext". This reuses Group's own per-chapter directory
+// naming unchanged (see docs/adr/0006-chapter-directories-for-kcc-toc.md);
+// only a volume directory wraps it, so the same KCC/mangapress convention
+// that gives one TOC entry per chapter also nests those under one entry per
+// volume. See docs/adr/0012-combine-series-into-one-volume.md.
+func CombineVolumes(volumes []Volume) []Page {
+	var pages []Page
+	for vi, vol := range volumes {
+		volumeDir := volumeDirName(vi+1, vol.Number)
+		for _, p := range vol.Pages {
+			pages = append(pages, Page{
+				SourcePath:      p.SourcePath,
+				SourceInArchive: p.SourceInArchive,
+				ArchiveName:     volumeDir + "/" + p.ArchiveName,
+			})
+		}
+	}
+	return pages
+}
+
+// volumeDirName builds the in-archive directory name for the volume at the
+// given position across the whole series. The position prefix guarantees
+// correct ordering even for fractional volume numbers (mirroring
+// chapterDirName's own reasoning); the number itself is what a reader
+// recognizes as the volume's own label.
+func volumeDirName(position int, number float64) string {
+	var numPart string
+	if number == math.Trunc(number) {
+		numPart = fmt.Sprintf("%02d", int(number))
+	} else {
+		numPart = strconv.FormatFloat(number, 'f', -1, 64)
+	}
+	return fmt.Sprintf("v%03d - Vol.%s", position, numPart)
 }
 
 // detectGaps looks for missing whole-number chapters in chs. It considers

@@ -44,14 +44,20 @@ type machineSummary struct {
 }
 
 type mangaReport struct {
-	Name         string             `json:"name"`
-	InputPath    string             `json:"input_path"`
-	MetadataFile string             `json:"metadata_file,omitempty"`
-	Status       string             `json:"status"`
-	Units        []unitReport       `json:"units"`
-	Volumes      []volumeReport     `json:"volumes"`
-	Issues       []machineIssue     `json:"issues"`
-	Summary      mangaReportSummary `json:"summary"`
+	Name      string `json:"name"`
+	InputPath string `json:"input_path"`
+	// CombinedOutputPath is set instead of each volume having its own written
+	// file when -combine was used: every volumeReport below still describes
+	// its own chapters, page count, and number, but its content physically
+	// lives inside this one file. Additive field, no protocol version bump -
+	// see docs/adr/0012-combine-series-into-one-volume.md.
+	CombinedOutputPath string             `json:"combined_output_path,omitempty"`
+	MetadataFile       string             `json:"metadata_file,omitempty"`
+	Status             string             `json:"status"`
+	Units              []unitReport       `json:"units"`
+	Volumes            []volumeReport     `json:"volumes"`
+	Issues             []machineIssue     `json:"issues"`
+	Summary            mangaReportSummary `json:"summary"`
 }
 
 type mangaReportSummary struct {
@@ -217,6 +223,7 @@ func runMachine(cfg cliConfig, output string) (machineReport, error) {
 			cfg.metadataFile,
 			true,
 			cfg.dryRun,
+			cfg.combine,
 			false,
 			io.Discard,
 			io.Discard,
@@ -248,6 +255,7 @@ func runMachine(cfg cliConfig, output string) (machineReport, error) {
 			"",
 			true,
 			cfg.dryRun,
+			cfg.combine,
 			false,
 			io.Discard,
 			io.Discard,
