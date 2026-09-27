@@ -25,9 +25,9 @@ var version = "dev"
 // cliConfig is the parsed result of the command line, kept separate from
 // flag.FlagSet so parseFlags is easy to call directly from tests.
 type cliConfig struct {
-	input, output, metadataFile string
-	batch, quiet, dryRun, json  bool
-	showVersion, showProtocol   bool
+	input, output, metadataFile         string
+	batch, quiet, dryRun, json, combine bool
+	showVersion, showProtocol           bool
 }
 
 func main() {
@@ -117,9 +117,9 @@ func runCLI(args []string, stdout, stderr io.Writer) int {
 	}
 
 	if cfg.batch {
-		err = runBatchWithOutput(cfg.input, output, cfg.quiet, cfg.dryRun, stdout, stderr)
+		err = runBatchWithOutput(cfg.input, output, cfg.quiet, cfg.dryRun, cfg.combine, stdout, stderr)
 	} else {
-		_, err = processMangaWithOutput(cfg.input, output, cfg.metadataFile, cfg.quiet, cfg.dryRun, stdout, stderr)
+		_, err = processMangaWithOutput(cfg.input, output, cfg.metadataFile, cfg.quiet, cfg.dryRun, cfg.combine, stdout, stderr)
 	}
 	if err != nil {
 		printlnTo(stderr, "mangabind:", err)
@@ -185,6 +185,7 @@ func parseFlagsWithOutput(args []string, output io.Writer) (cliConfig, *flag.Fla
 	fs.BoolVar(&cfg.dryRun, "dry-run", false, "show what would be written without writing any .cbz files")
 	fs.BoolVar(&cfg.dryRun, "n", false, "shorthand for -dry-run")
 	fs.BoolVar(&cfg.json, "json", false, "emit one versioned JSON report on stdout instead of human-readable output")
+	fs.BoolVar(&cfg.combine, "combine", false, "write the whole manga as one .cbz instead of one per volume, still reporting each volume's own chapters")
 	fs.BoolVar(&cfg.showProtocol, "protocol-version", false, "print machine-protocol compatibility information as JSON and exit")
 	fs.BoolVar(&cfg.showVersion, "version", false, "print the version and exit")
 	fs.Usage = func() { printUsage(fs) }
@@ -226,10 +227,10 @@ func defaultOutputDir(input string) string {
 // volumes) is reported but never stops the rest of the batch, the same way
 // one bad chapter never stops the rest of a single manga's volumes.
 func runBatch(libraryInput, output string, quiet, dryRun bool) error {
-	return runBatchWithOutput(libraryInput, output, quiet, dryRun, os.Stdout, os.Stderr)
+	return runBatchWithOutput(libraryInput, output, quiet, dryRun, false, os.Stdout, os.Stderr)
 }
 
-func runBatchWithOutput(libraryInput, output string, quiet, dryRun bool, stdout, stderr io.Writer) error {
+func runBatchWithOutput(libraryInput, output string, quiet, dryRun, combine bool, stdout, stderr io.Writer) error {
 	entries, err := os.ReadDir(libraryInput)
 	if err != nil {
 		return fmt.Errorf("scanning library %s: %w", libraryInput, err)
@@ -249,7 +250,7 @@ func runBatchWithOutput(libraryInput, output string, quiet, dryRun bool, stdout,
 
 		// No explicit override in batch mode - each manga only picks up its
 		// own mangabind.json convention file, if it has one.
-		summary, err := processMangaWithOutput(mangaPath, output, "", quiet, dryRun, stdout, stderr)
+		summary, err := processMangaWithOutput(mangaPath, output, "", quiet, dryRun, combine, stdout, stderr)
 		if err != nil {
 			errCount++
 			printfTo(stderr, "mangabind: %s: %v\n", e.Name(), err)
@@ -294,15 +295,15 @@ func resolveMetadataFile(input, explicit string) string {
 }
 
 func processManga(input, output, metadataFile string, quiet, dryRun bool) (mangaSummary, error) {
-	return processMangaWithOutput(input, output, metadataFile, quiet, dryRun, os.Stdout, os.Stderr)
+	return processMangaWithOutput(input, output, metadataFile, quiet, dryRun, false, os.Stdout, os.Stderr)
 }
 
-func processMangaWithOutput(input, output, metadataFile string, quiet, dryRun bool, stdout, stderr io.Writer) (mangaSummary, error) {
-	summary, _, err := processMangaDetailed(input, output, metadataFile, quiet, dryRun, true, stdout, stderr)
+func processMangaWithOutput(input, output, metadataFile string, quiet, dryRun, combine bool, stdout, stderr io.Writer) (mangaSummary, error) {
+	summary, _, err := processMangaDetailed(input, output, metadataFile, quiet, dryRun, combine, true, stdout, stderr)
 	return summary, err
 }
 
-func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, human bool, stdout, stderr io.Writer) (mangaSummary, mangaReport, error) {
+func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, combine, human bool, stdout, stderr io.Writer) (mangaSummary, mangaReport, error) {
 	var summary mangaSummary
 	mangaName := filepath.Base(filepath.Clean(input))
 	report := newMangaReport(mangaName, absolutePath(input))
@@ -467,26 +468,35 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, hum
 	result := grouper.Group(chapters, unparsed)
 	markUnitDispositions(report.Units, result)
 
-	for _, vol := range result.Volumes {
-		outPath := filepath.Join(output, cbz.VolumeFileName(mangaName, vol.Number))
-		volume := volumeReport{
-			Number:     vol.Number,
-			OutputPath: absolutePath(outPath),
-			PageCount:  len(vol.Pages),
-			Chapters:   chapterNamesForVolume(report.Units, vol.Number),
-			Written:    false,
+	if combine {
+		// One .cbz for the whole manga instead of one per volume - see
+		// docs/adr/0012-combine-series-into-one-volume.md. Each volume still
+		// gets its own report entry (chapters, page count, number), but its
+		// pages physically live inside the one combined file; grouper.Group
+		// above is untouched, only how the result is written differs.
+		outPath := filepath.Join(output, cbz.SeriesFileName(mangaName))
+		report.CombinedOutputPath = absolutePath(outPath)
+		for _, vol := range result.Volumes {
+			report.Volumes = append(report.Volumes, volumeReport{
+				Number:     vol.Number,
+				OutputPath: absolutePath(outPath),
+				PageCount:  len(vol.Pages),
+				Chapters:   chapterNamesForVolume(report.Units, vol.Number),
+				Written:    false,
+			})
+			summary.volumes++
+			summary.pages += len(vol.Pages)
 		}
 		if dryRun {
 			if human {
-				printfTo(stdout, "would write %s (%d pages)\n", outPath, len(vol.Pages))
+				printfTo(stdout, "would write %s (%d pages, %d volumes)\n", outPath, summary.pages, summary.volumes)
 			}
 		} else {
-			if err := cbz.Write(outPath, vol.Pages); err != nil {
-				wrapped := fmt.Errorf("writing volume %v: %w", vol.Number, err)
-				report.Volumes = append(report.Volumes, volume)
-				value := issue("error", "volume_write_failed", "write", fmt.Sprintf("Couldn't write volume %v.", vol.Number))
+			combined := grouper.CombineVolumes(result.Volumes)
+			if err := cbz.Write(outPath, combined); err != nil {
+				wrapped := fmt.Errorf("writing combined series: %w", err)
+				value := issue("error", "combined_write_failed", "write", "Couldn't write the combined series.")
 				value.Manga = mangaName
-				value.Volume = copyFloat(&vol.Number)
 				value.Path = absolutePath(outPath)
 				value.Recoverable = true
 				value.Diagnostic = wrapped.Error()
@@ -494,14 +504,47 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, hum
 				finalizeMangaReport(&report, summary)
 				return summary, report, wrapped
 			}
-			volume.Written = true
 			if human && !quiet {
-				printfTo(stdout, "wrote %s (%d pages)\n", outPath, len(vol.Pages))
+				printfTo(stdout, "wrote %s (%d pages, %d volumes)\n", outPath, summary.pages, summary.volumes)
 			}
 		}
-		report.Volumes = append(report.Volumes, volume)
-		summary.volumes++
-		summary.pages += len(vol.Pages)
+	} else {
+		for _, vol := range result.Volumes {
+			outPath := filepath.Join(output, cbz.VolumeFileName(mangaName, vol.Number))
+			volume := volumeReport{
+				Number:     vol.Number,
+				OutputPath: absolutePath(outPath),
+				PageCount:  len(vol.Pages),
+				Chapters:   chapterNamesForVolume(report.Units, vol.Number),
+				Written:    false,
+			}
+			if dryRun {
+				if human {
+					printfTo(stdout, "would write %s (%d pages)\n", outPath, len(vol.Pages))
+				}
+			} else {
+				if err := cbz.Write(outPath, vol.Pages); err != nil {
+					wrapped := fmt.Errorf("writing volume %v: %w", vol.Number, err)
+					report.Volumes = append(report.Volumes, volume)
+					value := issue("error", "volume_write_failed", "write", fmt.Sprintf("Couldn't write volume %v.", vol.Number))
+					value.Manga = mangaName
+					value.Volume = copyFloat(&vol.Number)
+					value.Path = absolutePath(outPath)
+					value.Recoverable = true
+					value.Diagnostic = wrapped.Error()
+					report.addIssue(value)
+					finalizeMangaReport(&report, summary)
+					return summary, report, wrapped
+				}
+				volume.Written = true
+				if human && !quiet {
+					printfTo(stdout, "wrote %s (%d pages)\n", outPath, len(vol.Pages))
+				}
+			}
+			report.Volumes = append(report.Volumes, volume)
+			summary.volumes++
+			summary.pages += len(vol.Pages)
+		}
 	}
 	if len(result.Volumes) == 0 {
 		if human {

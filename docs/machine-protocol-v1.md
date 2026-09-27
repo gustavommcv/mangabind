@@ -28,6 +28,7 @@ The command exits 0 and writes one JSON object to stdout:
 mangabind --input <folder> --output <folder> --dry-run --json
 mangabind --input <folder> --output <folder> --json
 mangabind --input <library> --output <folder> --batch --dry-run --json
+mangabind --input <folder> --output <folder> --combine --json
 ```
 
 Stdout is exactly one JSON report. Planning mode reports `mode: "plan"` and all volume records have
@@ -46,7 +47,9 @@ The top-level object contains:
 - `summary`: manga, volume, page, warning, and error totals
 
 Every manga report contains its name, absolute input and optional metadata paths, status, ordered
-`units`, ordered intended `volumes`, structured `issues`, and totals.
+`units`, ordered intended `volumes`, structured `issues`, and totals. When `-combine` was used,
+`combined_output_path` is also present (see "Volumes" below) - see
+[ADR 0012](adr/0012-combine-series-into-one-volume.md).
 
 ### Units
 
@@ -69,6 +72,13 @@ assignment came from.
 
 Every intended output has its numeric volume, absolute output path, page count, ordered source unit
 names, and `written` state. A failed write remains present with `written: false`.
+
+When `-combine` was used, the manga report's `combined_output_path` is set instead of each volume
+having its own written file: every volume record still describes its own `number`, `page_count`,
+and `chapters`, but `output_path` points at that one combined file and `written` stays `false` for
+each individual entry - the write succeeded or failed as a whole, reflected by whether
+`combined_output_path`'s file actually exists and by the absence of a `combined_write_failed`
+issue. See [ADR 0012](adr/0012-combine-series-into-one-volume.md).
 
 ### Issues
 
@@ -105,6 +115,7 @@ Version 1 codes are:
 | `chapter_conflict` | `group` | Multiple sources claim the same volume/chapter key |
 | `no_volumes_produced` | `group` | No intended output survived grouping |
 | `volume_write_failed` | `write` | An intended volume could not be written |
+| `combined_write_failed` | `write` | A `-combine` run's single combined file could not be written |
 
 ## Evolution rule
 

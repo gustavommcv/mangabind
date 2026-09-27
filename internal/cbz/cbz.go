@@ -105,3 +105,10 @@ func VolumeFileName(manga string, volume float64) string {
 	}
 	return fmt.Sprintf("%s - Vol.%s.cbz", manga, numPart)
 }
+
+// SeriesFileName builds the output filename for a whole series combined into
+// one volume, e.g. "Chainsaw Man.cbz" - see
+// docs/adr/0012-combine-series-into-one-volume.md.
+func SeriesFileName(manga string) string {
+	return fmt.Sprintf("%s.cbz", manga)
+}

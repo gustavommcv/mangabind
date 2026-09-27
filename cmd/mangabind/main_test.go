@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -100,6 +101,50 @@ func TestProcessMangaDryRunWritesNothing(t *testing.T) {
 	}
 	if countEntries(t, output) != 0 {
 		t.Fatal("dry-run should not have written any files")
+	}
+}
+
+// TestProcessMangaCombineWritesOneSeriesFile proves -combine writes exactly
+// one .cbz for the whole manga instead of one per volume, with pages nested
+// one directory deeper (volume, then chapter) than a normal run - see
+// docs/adr/0012-combine-series-into-one-volume.md.
+func TestProcessMangaCombineWritesOneSeriesFile(t *testing.T) {
+	root := t.TempDir()
+	input := filepath.Join(root, "Chainsaw Man")
+	makeChapter(t, input, "Vol.01 Ch.0001 - Alpha (en) [Group]", 2)
+	makeChapter(t, input, "Vol.02 Ch.0002 - Beta (en) [Group]", 1)
+
+	output := filepath.Join(root, "out")
+	summary, err := processMangaWithOutput(input, output, "", true, false, true /* combine */, io.Discard, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.volumes != 2 || summary.pages != 3 {
+		t.Fatalf("summary = %+v, want 2 volumes, 3 pages", summary)
+	}
+
+	if countEntries(t, output) != 1 {
+		t.Fatalf("combine mode should write exactly one file, output dir has %d entries", countEntries(t, output))
+	}
+
+	outPath := filepath.Join(output, "Chainsaw Man.cbz")
+	zr, err := zip.OpenReader(outPath)
+	if err != nil {
+		t.Fatalf("opening %s: %v", outPath, err)
+	}
+	defer zr.Close()
+
+	var names []string
+	for _, f := range zr.File {
+		names = append(names, f.Name)
+	}
+	want := []string{
+		"v001 - Vol.01/c001 - Alpha/p0001.jpg",
+		"v001 - Vol.01/c001 - Alpha/p0002.jpg",
+		"v002 - Vol.02/c001 - Beta/p0001.jpg",
+	}
+	if !reflect.DeepEqual(names, want) {
+		t.Fatalf("archive entries = %v, want %v", names, want)
 	}
 }
 
