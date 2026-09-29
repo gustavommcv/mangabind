@@ -25,9 +25,9 @@ var version = "dev"
 // cliConfig is the parsed result of the command line, kept separate from
 // flag.FlagSet so parseFlags is easy to call directly from tests.
 type cliConfig struct {
-	input, output, metadataFile         string
-	batch, quiet, dryRun, json, combine bool
-	showVersion, showProtocol           bool
+	input, output, metadataFile                       string
+	batch, quiet, dryRun, json, combine, progressJSON bool
+	showVersion, showProtocol                         bool
 }
 
 func main() {
@@ -56,7 +56,7 @@ func runCLI(args []string, stdout, stderr io.Writer) int {
 			ProtocolVersion: machineProtocolVersion,
 			Tool:            "mangabind",
 			ToolVersion:     version,
-			Capabilities:    []string{"report"},
+			Capabilities:    []string{"report", "progress-json"},
 		}); err != nil {
 			printlnTo(stderr, "mangabind: writing protocol information:", err)
 			return 1
@@ -67,6 +67,10 @@ func runCLI(args []string, stdout, stderr io.Writer) int {
 	if cfg.showVersion {
 		printlnTo(stdout, "mangabind", version)
 		return 0
+	}
+	if cfg.progressJSON && !cfg.json {
+		printlnTo(stderr, "mangabind: -progress-json requires -json")
+		return 2
 	}
 
 	if cfg.input == "" {
@@ -105,7 +109,11 @@ func runCLI(args []string, stdout, stderr io.Writer) int {
 	}
 
 	if cfg.json {
-		report, err := runMachine(cfg, output)
+		var progress progressSink
+		if cfg.progressJSON {
+			progress = newProgressSink(stderr)
+		}
+		report, err := runMachine(cfg, output, progress)
 		if writeErr := writeMachineJSON(stdout, report); writeErr != nil {
 			printlnTo(stderr, "mangabind: writing JSON report:", writeErr)
 			return 1
@@ -185,6 +193,7 @@ func parseFlagsWithOutput(args []string, output io.Writer) (cliConfig, *flag.Fla
 	fs.BoolVar(&cfg.dryRun, "dry-run", false, "show what would be written without writing any .cbz files")
 	fs.BoolVar(&cfg.dryRun, "n", false, "shorthand for -dry-run")
 	fs.BoolVar(&cfg.json, "json", false, "emit one versioned JSON report on stdout instead of human-readable output")
+	fs.BoolVar(&cfg.progressJSON, "progress-json", false, "with -json, emit newline-delimited progress events on stderr while keeping the final report on stdout")
 	fs.BoolVar(&cfg.combine, "combine", false, "write the whole manga as one .cbz instead of one per volume, still reporting each volume's own chapters")
 	fs.BoolVar(&cfg.showProtocol, "protocol-version", false, "print machine-protocol compatibility information as JSON and exit")
 	fs.BoolVar(&cfg.showVersion, "version", false, "print the version and exit")
@@ -299,14 +308,17 @@ func processManga(input, output, metadataFile string, quiet, dryRun bool) (manga
 }
 
 func processMangaWithOutput(input, output, metadataFile string, quiet, dryRun, combine bool, stdout, stderr io.Writer) (mangaSummary, error) {
-	summary, _, err := processMangaDetailed(input, output, metadataFile, quiet, dryRun, combine, true, stdout, stderr)
+	summary, _, err := processMangaDetailed(input, output, metadataFile, quiet, dryRun, combine, true, stdout, stderr, nil)
 	return summary, err
 }
 
-func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, combine, human bool, stdout, stderr io.Writer) (mangaSummary, mangaReport, error) {
+func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, combine, human bool, stdout, stderr io.Writer, progress progressSink) (mangaSummary, mangaReport, error) {
 	var summary mangaSummary
 	mangaName := filepath.Base(filepath.Clean(input))
 	report := newMangaReport(mangaName, absolutePath(input))
+	if progress != nil {
+		progress(machineProgress{Stage: "inspect", State: "started", Manga: mangaName})
+	}
 
 	var metaMap *metadata.Map
 	if mf := resolveMetadataFile(input, metadataFile); mf != "" {
@@ -467,6 +479,23 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 
 	result := grouper.Group(chapters, unparsed)
 	markUnitDispositions(report.Units, result)
+	if progress != nil {
+		progress(machineProgress{Stage: "inspect", State: "completed", Manga: mangaName})
+	}
+	var totalPages int
+	for _, volume := range result.Volumes {
+		totalPages += len(volume.Pages)
+	}
+	completedPages := 0
+	emitWrite := func(state string, index int, volume float64, completed int) {
+		if progress != nil {
+			progress(machineProgress{
+				Stage: "write", State: state, Manga: mangaName,
+				VolumeIndex: index + 1, VolumeCount: len(result.Volumes), VolumeNumber: &volume,
+				CompletedPages: &completed, TotalPages: totalPages,
+			})
+		}
+	}
 
 	if combine {
 		// One .cbz for the whole manga instead of one per volume - see
@@ -493,7 +522,27 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 			}
 		} else {
 			combined := grouper.CombineVolumes(result.Volumes)
-			if err := cbz.Write(outPath, combined); err != nil {
+			if len(result.Volumes) > 0 {
+				emitWrite("started", 0, result.Volumes[0].Number, 0)
+			}
+			volumeIndex := 0
+			volumeEnd := 0
+			if len(result.Volumes) > 0 {
+				volumeEnd = len(result.Volumes[0].Pages)
+			}
+			var onPage func(int)
+			if progress != nil {
+				onPage = func(completed int) {
+					for volumeIndex+1 < len(result.Volumes) && completed > volumeEnd {
+						volumeIndex++
+						volumeEnd += len(result.Volumes[volumeIndex].Pages)
+					}
+					if len(result.Volumes) > 0 {
+						emitWrite("advanced", volumeIndex, result.Volumes[volumeIndex].Number, completed)
+					}
+				}
+			}
+			if err := cbz.WriteWithProgress(outPath, combined, onPage); err != nil {
 				wrapped := fmt.Errorf("writing combined series: %w", err)
 				value := issue("error", "combined_write_failed", "write", "Couldn't write the combined series.")
 				value.Manga = mangaName
@@ -504,12 +553,16 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 				finalizeMangaReport(&report, summary)
 				return summary, report, wrapped
 			}
+			if len(result.Volumes) > 0 {
+				last := len(result.Volumes) - 1
+				emitWrite("completed", last, result.Volumes[last].Number, totalPages)
+			}
 			if human && !quiet {
 				printfTo(stdout, "wrote %s (%d pages, %d volumes)\n", outPath, summary.pages, summary.volumes)
 			}
 		}
 	} else {
-		for _, vol := range result.Volumes {
+		for index, vol := range result.Volumes {
 			outPath := filepath.Join(output, cbz.VolumeFileName(mangaName, vol.Number))
 			volume := volumeReport{
 				Number:     vol.Number,
@@ -523,7 +576,14 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 					printfTo(stdout, "would write %s (%d pages)\n", outPath, len(vol.Pages))
 				}
 			} else {
-				if err := cbz.Write(outPath, vol.Pages); err != nil {
+				emitWrite("started", index, vol.Number, completedPages)
+				var onPage func(int)
+				if progress != nil {
+					onPage = func(completed int) {
+						emitWrite("advanced", index, vol.Number, completedPages+completed)
+					}
+				}
+				if err := cbz.WriteWithProgress(outPath, vol.Pages, onPage); err != nil {
 					wrapped := fmt.Errorf("writing volume %v: %w", vol.Number, err)
 					report.Volumes = append(report.Volumes, volume)
 					value := issue("error", "volume_write_failed", "write", fmt.Sprintf("Couldn't write volume %v.", vol.Number))
@@ -536,6 +596,8 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 					finalizeMangaReport(&report, summary)
 					return summary, report, wrapped
 				}
+				completedPages += len(vol.Pages)
+				emitWrite("completed", index, vol.Number, completedPages)
 				volume.Written = true
 				if human && !quiet {
 					printfTo(stdout, "wrote %s (%d pages)\n", outPath, len(vol.Pages))

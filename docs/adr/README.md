@@ -18,3 +18,4 @@ you need the "why," not just the "what."
 | [0010](0010-local-metadata-file.md) | Resolve missing volume numbers from a local metadata file, not a network provider |
 | [0011](0011-versioned-machine-report.md) | Add a versioned JSON planning and execution report; preserve ADR 0009's human CLI behavior |
 | [0012](0012-combine-series-into-one-volume.md) | Add `-combine`: write a whole series as one `.cbz`, still reporting each volume's chapters |
+| [0013](0013-opt-in-machine-progress.md) | Add optional structured progress on stderr without changing the final JSON report or human output |

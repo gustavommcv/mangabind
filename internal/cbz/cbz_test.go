@@ -63,6 +63,27 @@ func TestWrite(t *testing.T) {
 	}
 }
 
+func TestWriteWithProgressReportsOnlyCopiedPages(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "page.jpg")
+	if err := os.WriteFile(source, []byte("image"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pages := []grouper.Page{
+		{SourcePath: source, ArchiveName: "c001/p0001.jpg"},
+		{SourcePath: source, ArchiveName: "c001/p0002.jpg"},
+	}
+	var completed []int
+	if err := WriteWithProgress(filepath.Join(dir, "book.cbz"), pages, func(n int) {
+		completed = append(completed, n)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(completed) != 2 || completed[0] != 1 || completed[1] != 2 {
+		t.Fatalf("completed pages = %v", completed)
+	}
+}
+
 func TestWriteFromArchiveSource(t *testing.T) {
 	dir := t.TempDir()
 

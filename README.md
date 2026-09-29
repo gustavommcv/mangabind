@@ -130,6 +130,16 @@ mangabind --input "/path/to/manga" --output "/path/to/volumes" --dry-run --json
 mangabind --input "/path/to/manga" --output "/path/to/volumes" --json
 ```
 
+For live progress in a script or another frontend, add `--progress-json`. Stdout still contains
+one final report; stderr becomes newline-delimited structured progress:
+
+```bash
+mangabind --input "/path/to/manga" --json --progress-json >report.json 2>progress.jsonl
+```
+
+This is optional and does not change the normal terminal output. The progress counts reflect
+pages actually copied into the CBZ, while the final report and exit code remain authoritative.
+
 `mangabind --protocol-version` returns the compatibility handshake used by GUI consumers. See the
 [machine protocol v1 specification](docs/machine-protocol-v1.md) and
 [ADR 0011](docs/adr/0011-versioned-machine-report.md). Scripts must check `protocol_version` rather
