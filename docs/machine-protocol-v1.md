@@ -14,13 +14,18 @@ The command exits 0 and writes one JSON object to stdout:
 {
   "protocol_version": 1,
   "tool": "mangabind",
-  "tool_version": "0.4.0",
-  "capabilities": ["report"]
+  "tool_version": "0.6.0",
+  "capabilities": ["report", "progress-json"]
 }
 ```
 
 `tool_version` is `dev` for an unversioned local build. Mangabound must require an exact supported
 `protocol_version` and independently verify the pinned release version and executable checksum.
+
+`capabilities` lists optional features a consumer may rely on: `report` is the versioned JSON report
+this document describes, and `progress-json` is the opt-in progress side channel described below.
+Releases before 0.6.0 advertise only `report`; a consumer should check for the capability, not
+compare release versions.
 
 ## Planning and execution
 
