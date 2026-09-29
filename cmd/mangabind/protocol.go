@@ -20,6 +20,38 @@ type protocolInfo struct {
 	Capabilities    []string `json:"capabilities"`
 }
 
+// Progress is an opt-in stderr side channel. It never changes the version 1
+// stdout report or the default human-readable CLI behavior.
+type machineProgress struct {
+	ProtocolVersion int      `json:"protocol_version"`
+	Tool            string   `json:"tool"`
+	ToolVersion     string   `json:"tool_version"`
+	Kind            string   `json:"kind"`
+	Stage           string   `json:"stage"`
+	State           string   `json:"state"`
+	Manga           string   `json:"manga"`
+	VolumeIndex     int      `json:"volume_index,omitempty"`
+	VolumeCount     int      `json:"volume_count,omitempty"`
+	VolumeNumber    *float64 `json:"volume_number,omitempty"`
+	CompletedPages  *int     `json:"completed_pages,omitempty"`
+	TotalPages      int      `json:"total_pages,omitempty"`
+}
+
+type progressSink func(machineProgress)
+
+func newProgressSink(writer io.Writer) progressSink {
+	encoder := json.NewEncoder(writer)
+	encoder.SetEscapeHTML(false)
+	return func(event machineProgress) {
+		event.ProtocolVersion = machineProtocolVersion
+		event.Tool = "mangabind"
+		event.ToolVersion = version
+		event.Kind = "progress"
+		// Progress is advisory; the stdout report and exit code remain authoritative.
+		_ = encoder.Encode(event)
+	}
+}
+
 type machineReport struct {
 	ProtocolVersion int            `json:"protocol_version"`
 	Tool            string         `json:"tool"`
@@ -211,7 +243,7 @@ func finalizeMangaReport(report *mangaReport, summary mangaSummary) {
 	report.Summary.Pages = summary.pages
 }
 
-func runMachine(cfg cliConfig, output string) (machineReport, error) {
+func runMachine(cfg cliConfig, output string, progress progressSink) (machineReport, error) {
 	report := newMachineReport(modeFor(cfg.dryRun), cfg.batch)
 	report.InputPath = absolutePath(cfg.input)
 	report.OutputPath = absolutePath(output)
@@ -227,6 +259,7 @@ func runMachine(cfg cliConfig, output string) (machineReport, error) {
 			false,
 			io.Discard,
 			io.Discard,
+			progress,
 		)
 		report.addManga(manga)
 		return report, err
@@ -259,6 +292,7 @@ func runMachine(cfg cliConfig, output string) (machineReport, error) {
 			false,
 			io.Discard,
 			io.Discard,
+			progress,
 		)
 		report.addManga(manga)
 		if mangaErr != nil {

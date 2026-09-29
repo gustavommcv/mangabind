@@ -20,6 +20,12 @@ import (
 // It creates outPath's parent directory if needed, and overwrites an
 // existing file at outPath.
 func Write(outPath string, pages []grouper.Page) error {
+	return WriteWithProgress(outPath, pages, nil)
+}
+
+// WriteWithProgress writes the same archive as Write and calls onPage after
+// each page has been copied. The archive is not complete until this returns.
+func WriteWithProgress(outPath string, pages []grouper.Page, onPage func(completed int)) error {
 	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 		return err
 	}
@@ -31,10 +37,13 @@ func Write(outPath string, pages []grouper.Page) error {
 	defer f.Close()
 
 	zw := zip.NewWriter(f)
-	for _, p := range pages {
+	for index, p := range pages {
 		if err := addPage(zw, p); err != nil {
 			zw.Close()
 			return fmt.Errorf("adding %s: %w", p.SourcePath, err)
+		}
+		if onPage != nil {
+			onPage(index + 1)
 		}
 	}
 	return zw.Close()

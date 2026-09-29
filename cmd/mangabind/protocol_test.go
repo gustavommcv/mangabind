@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -42,8 +43,167 @@ func TestMachineProtocolVersion(t *testing.T) {
 	if got.ProtocolVersion != machineProtocolVersion || got.Tool != "mangabind" || got.ToolVersion == "" {
 		t.Fatalf("unexpected protocol information: %+v", got)
 	}
-	if len(got.Capabilities) != 1 || got.Capabilities[0] != "report" {
-		t.Fatalf("capabilities = %v, want [report]", got.Capabilities)
+	if len(got.Capabilities) != 2 || got.Capabilities[0] != "report" || got.Capabilities[1] != "progress-json" {
+		t.Fatalf("capabilities = %v, want [report progress-json]", got.Capabilities)
+	}
+}
+
+func parseProgressLines(t *testing.T, output string) []machineProgress {
+	t.Helper()
+	var events []machineProgress
+	for _, line := range bytes.Split(bytes.TrimSpace([]byte(output)), []byte("\n")) {
+		var event machineProgress
+		if err := json.Unmarshal(line, &event); err != nil {
+			t.Fatalf("progress line is not JSON: %v\nline: %s", err, line)
+		}
+		if event.ProtocolVersion != machineProtocolVersion || event.Tool != "mangabind" || event.Kind != "progress" {
+			t.Fatalf("invalid progress envelope: %+v", event)
+		}
+		events = append(events, event)
+	}
+	return events
+}
+
+func reportedPages(t *testing.T, event machineProgress) int {
+	t.Helper()
+	if event.CompletedPages == nil {
+		t.Fatalf("write event omitted completed_pages: %+v", event)
+	}
+	return *event.CompletedPages
+}
+
+func TestMachineProgressUsesRealFixtureWithoutChangingFinalReport(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	output := filepath.Join(t.TempDir(), "out")
+	if code := runCLI([]string{"--input", realFixturePath(t, "sample_manga"), "--output", output, "--json", "--progress-json"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	var report machineReport
+	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+		t.Fatalf("final stdout report changed: %v", err)
+	}
+	if report.Summary.Pages != 4 || !report.Manga[0].Volumes[0].Written {
+		t.Fatalf("unexpected final report: %+v", report)
+	}
+	events := parseProgressLines(t, stderr.String())
+	if events[0].Stage != "inspect" || events[0].State != "started" || events[1].State != "completed" {
+		t.Fatalf("unexpected inspection progress: %+v", events)
+	}
+	write := events[2:]
+	if write[0].State != "started" || write[0].VolumeIndex != 1 || write[0].VolumeCount != 1 || write[0].TotalPages != 4 {
+		t.Fatalf("unexpected write start: %+v", write[0])
+	}
+	if reportedPages(t, write[0]) != 0 {
+		t.Fatalf("write start should report zero copied pages: %+v", write[0])
+	}
+	for index := 1; index <= 4; index++ {
+		if write[index].State != "advanced" || reportedPages(t, write[index]) != index {
+			t.Fatalf("page %d progress = %+v", index, write[index])
+		}
+	}
+	if last := write[len(write)-1]; last.State != "completed" || reportedPages(t, last) != 4 {
+		t.Fatalf("unexpected final progress: %+v", last)
+	}
+}
+
+func TestMachineProgressDryRunNeverClaimsPagesWereWritten(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := runCLI([]string{"--input", realFixturePath(t, "sample_manga"), "--output", filepath.Join(t.TempDir(), "out"), "--dry-run", "--json", "--progress-json"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit code = %d", code)
+	}
+	for _, event := range parseProgressLines(t, stderr.String()) {
+		if event.Stage == "write" {
+			t.Fatalf("dry-run claimed write progress: %+v", event)
+		}
+	}
+}
+
+func TestMachineProgressRequiresJsonMode(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := runCLI([]string{"--progress-json"}, &stdout, &stderr); code != 2 || !bytes.Contains(stderr.Bytes(), []byte("requires -json")) {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
+	}
+}
+
+func TestMachineProgressKeepsZeroVolumeNumber(t *testing.T) {
+	var output bytes.Buffer
+	volume, pages := 0.0, 0
+	newProgressSink(&output)(machineProgress{
+		Stage: "write", State: "started", Manga: "A Work",
+		VolumeIndex: 1, VolumeCount: 1, VolumeNumber: &volume,
+		CompletedPages: &pages, TotalPages: 1,
+	})
+	events := parseProgressLines(t, output.String())
+	if len(events) != 1 || events[0].VolumeNumber == nil || *events[0].VolumeNumber != 0 || reportedPages(t, events[0]) != 0 {
+		t.Fatalf("zero values were lost: %+v", events)
+	}
+}
+
+type rejectingProgressWriter struct{}
+
+func (rejectingProgressWriter) Write([]byte) (int, error) {
+	return 0, errors.New("progress sink unavailable")
+}
+
+func TestMachineProgressSinkFailureDoesNotFailArchive(t *testing.T) {
+	output := filepath.Join(t.TempDir(), "out")
+	report, err := runMachine(cliConfig{
+		input:  realFixturePath(t, "sample_manga"),
+		output: output,
+	}, output, newProgressSink(rejectingProgressWriter{}))
+	if err != nil || report.Manga[0].Volumes[0].Written != true {
+		t.Fatalf("progress sink affected the final result: %v, %+v", err, report)
+	}
+	if _, err := os.Stat(report.Manga[0].Volumes[0].OutputPath); err != nil {
+		t.Fatalf("archive was not written: %v", err)
+	}
+}
+
+func TestMachineCombinedProgressFollowsSourceVolumes(t *testing.T) {
+	root := t.TempDir()
+	input := filepath.Join(root, "Series")
+	makeChapter(t, input, "Vol.01 Ch.0001 - First", 2)
+	makeChapter(t, input, "Vol.02 Ch.0002 - Second", 1)
+	var stdout, stderr bytes.Buffer
+	if code := runCLI([]string{"--input", input, "--output", filepath.Join(root, "out"), "--combine", "--json", "--progress-json"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	events := parseProgressLines(t, stderr.String())
+	var advanced []machineProgress
+	for _, event := range events {
+		if event.Stage == "write" && event.State == "advanced" {
+			advanced = append(advanced, event)
+		}
+	}
+	if len(advanced) != 3 || advanced[0].VolumeIndex != 1 || advanced[1].VolumeIndex != 1 || advanced[2].VolumeIndex != 2 {
+		t.Fatalf("combined progress did not follow volumes: %+v", advanced)
+	}
+	if last := events[len(events)-1]; last.State != "completed" || reportedPages(t, last) != 3 || last.VolumeCount != 2 {
+		t.Fatalf("combined archive did not complete: %+v", last)
+	}
+	var report machineReport
+	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil || report.Manga[0].CombinedOutputPath == "" {
+		t.Fatalf("unexpected combined report: %v, %+v", err, report)
+	}
+}
+
+func TestMachineBatchProgressNamesEachMangaAndResetsCounts(t *testing.T) {
+	root := t.TempDir()
+	input := filepath.Join(root, "Library")
+	makeChapter(t, filepath.Join(input, "Alpha"), "Vol.01 Ch.0001 - First", 1)
+	makeChapter(t, filepath.Join(input, "Beta"), "Vol.01 Ch.0001 - First", 2)
+	var stdout, stderr bytes.Buffer
+	if code := runCLI([]string{"--input", input, "--output", filepath.Join(root, "out"), "--batch", "--json", "--progress-json"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit code = %d, stderr = %s", code, stderr.String())
+	}
+	var completed []machineProgress
+	for _, event := range parseProgressLines(t, stderr.String()) {
+		if event.Stage == "write" && event.State == "completed" {
+			completed = append(completed, event)
+		}
+	}
+	if len(completed) != 2 || completed[0].Manga != "Alpha" || reportedPages(t, completed[0]) != 1 || completed[1].Manga != "Beta" || reportedPages(t, completed[1]) != 2 {
+		t.Fatalf("batch progress = %+v", completed)
 	}
 }
 

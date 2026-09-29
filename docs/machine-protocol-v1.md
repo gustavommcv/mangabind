@@ -14,13 +14,18 @@ The command exits 0 and writes one JSON object to stdout:
 {
   "protocol_version": 1,
   "tool": "mangabind",
-  "tool_version": "0.4.0",
-  "capabilities": ["report"]
+  "tool_version": "0.6.0",
+  "capabilities": ["report", "progress-json"]
 }
 ```
 
 `tool_version` is `dev` for an unversioned local build. Mangabound must require an exact supported
 `protocol_version` and independently verify the pinned release version and executable checksum.
+
+`capabilities` lists optional features a consumer may rely on: `report` is the versioned JSON report
+this document describes, and `progress-json` is the opt-in progress side channel described below.
+Releases before 0.6.0 advertise only `report`; a consumer should check for the capability, not
+compare release versions.
 
 ## Planning and execution
 
@@ -34,6 +39,28 @@ mangabind --input <folder> --output <folder> --combine --json
 Stdout is exactly one JSON report. Planning mode reports `mode: "plan"` and all volume records have
 `written: false`. Execution reports `mode: "execute"`; `written` becomes true only after that CBZ
 was successfully closed. Human output is unchanged when `--json` is absent.
+
+### Optional progress side channel
+
+`--progress-json` requires `--json`. It leaves the single stdout report unchanged and emits one
+JSON object per line on stderr while work is underway. For example, a standalone script can run
+`mangabind --input <folder> --output <folder> --json --progress-json >report.json 2>progress.jsonl`.
+The handshake advertises `"progress-json"` alongside `"report"` when this mode is available.
+
+Every progress event contains `protocol_version: 1`, `tool: "mangabind"`, `tool_version`,
+`kind: "progress"`, `stage`, `state`, and `manga`. `stage` is `"inspect"` or `"write"`.
+Inspection has `"started"` and `"completed"` states. Write events use `"started"`, `"advanced"`,
+and `"completed"` and include the 1-based `volume_index`, `volume_count`, numeric `volume_number`,
+`completed_pages`, and `total_pages`. The page counters refer to this manga, even in batch mode;
+they reset for the next manga. `advanced` means a page was copied into the archive, not that the
+archive was closed. Only `completed` follows a successful close. In `--combine`, progress identifies
+the source volume currently being copied into the single output archive. `--dry-run` emits no write
+events. The final stdout report and exit code, not progress, determine whether the command succeeded.
+
+With `--progress-json`, stderr is reserved for progress during normal execution. A failure to
+serialize the final report may still produce a plain diagnostic there. Consumers must treat that
+case as a failed invocation, not as a progress event. Without `--progress-json`, the existing
+stderr behavior is unchanged.
 
 The top-level object contains:
 
