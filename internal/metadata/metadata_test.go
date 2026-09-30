@@ -62,6 +62,39 @@ func TestLoadAndLookup(t *testing.T) {
 	}
 }
 
+// Other tools keep their own facts about a manga in this file (Mangabound
+// stores manga.author and manga.language, see the README), so keys this
+// package has never heard of must not change how the file is read.
+func TestLoadIgnoresKeysItDoesNotKnow(t *testing.T) {
+	path := writeFile(t, `{
+		"schema_version": 1,
+		"manga": {"title": "Example Manga", "author": "Some Author", "language": "en"},
+		"volumes": [{"number": "1", "chapters": ["1-7"]}],
+		"another_tool": {"anything": true}
+	}`)
+
+	m, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := m.Lookup(3, ""); !ok || got != 1 {
+		t.Errorf("Lookup(3, \"\") = %v, %v, want volume 1", got, ok)
+	}
+
+	// Only those keys and no volumes is a valid file that maps nothing.
+	empty, err := Load(writeFile(t, `{
+		"schema_version": 1,
+		"manga": {"author": "Some Author", "language": "pt-br"},
+		"volumes": []
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := empty.Lookup(1, ""); ok {
+		t.Error("a file with no volumes should not map any chapter")
+	}
+}
+
 func TestLoadRejectsUnsupportedSchemaVersion(t *testing.T) {
 	path := writeFile(t, `{"schema_version": 2, "volumes": []}`)
 	if _, err := Load(path); err == nil {

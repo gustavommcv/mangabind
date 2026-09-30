@@ -166,6 +166,24 @@ automatically (or pass `--metadata-file path/to/file.json` explicitly - not comb
 `--batch`, since each manga in a library needs its own file). `chapters` entries can be a single
 number (`"8.5"`, or `"21x1"` for a bonus/special chapter) or an inclusive range (`"1-7"`). A volume
 number already present in a chapter's own name always wins; the file only fills in what's missing.
+
+The file may also carry facts that other tools keep about the manga. Mangabind reads `volumes` and
+nothing else (`manga` and `source` are informational), and it ignores any other key, including keys
+it does not know inside `manga`. [Mangabound](https://github.com/gustavommcv/mangabound), for
+instance, remembers a folder's author and language there:
+
+```json
+{
+  "schema_version": 1,
+  "manga": { "title": "Example Manga", "author": "Some Author", "language": "en" },
+  "volumes": []
+}
+```
+
+Such a file changes nothing about a run - with no volumes listed, chapters are matched by their own
+names exactly as if it were not there. `schema_version` is still required, so a tool that writes the
+file must set it.
+
 Mangabind never fetches this data itself - see
 [docs/adr/0010-local-metadata-file.md](docs/adr/0010-local-metadata-file.md) for why, and where
 generating this file from an external metadata API should live instead.
