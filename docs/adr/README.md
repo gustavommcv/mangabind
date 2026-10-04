@@ -19,3 +19,4 @@ you need the "why," not just the "what."
 | [0011](0011-versioned-machine-report.md) | Add a versioned JSON planning and execution report; preserve ADR 0009's human CLI behavior |
 | [0012](0012-combine-series-into-one-volume.md) | Add `-combine`: write a whole series as one `.cbz`, still reporting each volume's chapters |
 | [0013](0013-opt-in-machine-progress.md) | Add optional structured progress on stderr without changing the final JSON report or human output |
+| [0014](0014-links-stay-inside-the-input.md) | Follow a symbolic link only when it leads to a file inside the input; skip and report the rest |

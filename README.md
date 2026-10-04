@@ -145,6 +145,14 @@ pages actually copied into the CBZ, while the final report and exit code remain 
 [ADR 0011](docs/adr/0011-versioned-machine-report.md). Scripts must check `protocol_version` rather
 than infer compatibility from the release version.
 
+### Links
+
+A symbolic link in a manga folder is followed only when it leads to a file inside that folder. A
+link that leads anywhere else, to nothing, or to a folder is left out and reported as a
+`link_skipped` warning, so that a manga folder from someone else cannot put a file from your disk
+into a volume. If you keep your library as links into another place on purpose, put a copy of the
+file in the manga folder instead. See [ADR 0014](docs/adr/0014-links-stay-inside-the-input.md).
+
 ## When chapter names don't carry a volume number
 
 Some sources only name chapters `Chapter 1`, `Chapter 2`, ... with no volume information at all -

@@ -9,7 +9,7 @@ import (
 )
 
 func TestScan(t *testing.T) {
-	entries, skipped, err := Scan("../../testdata/sample_manga")
+	entries, skipped, _, err := Scan("../../testdata/sample_manga")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestScan(t *testing.T) {
 }
 
 func TestScanMixedFormats(t *testing.T) {
-	entries, skipped, err := Scan("../../testdata/sample_manga_mixed")
+	entries, skipped, _, err := Scan("../../testdata/sample_manga_mixed")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestScanMixedFormats(t *testing.T) {
 }
 
 func TestPages(t *testing.T) {
-	pages, err := Pages("../../testdata/sample_manga/Chapter 3")
+	pages, _, err := Pages("../../testdata/sample_manga", "../../testdata/sample_manga/Chapter 3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,14 +75,14 @@ func TestPages(t *testing.T) {
 }
 
 func TestScanNonexistentDir(t *testing.T) {
-	_, _, err := Scan(filepath.Join(t.TempDir(), "does-not-exist"))
+	_, _, _, err := Scan(filepath.Join(t.TempDir(), "does-not-exist"))
 	if err == nil {
 		t.Fatal("expected an error scanning a nonexistent directory")
 	}
 }
 
 func TestPagesNonexistentDir(t *testing.T) {
-	_, err := Pages(filepath.Join(t.TempDir(), "does-not-exist"))
+	_, _, err := Pages(t.TempDir(), filepath.Join(t.TempDir(), "does-not-exist"))
 	if err == nil {
 		t.Fatal("expected an error listing pages in a nonexistent directory")
 	}

@@ -341,7 +341,7 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 		}
 	}
 
-	entries, skipped, err := scanner.Scan(input)
+	entries, skipped, links, err := scanner.Scan(input)
 	if err != nil {
 		wrapped := fmt.Errorf("scanning %s: %w", input, err)
 		value := issue("error", "input_scan_failed", "inspect", "Couldn't inspect the manga folder.")
@@ -364,6 +364,7 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 		finalizeMangaReport(&report, summary)
 		return summary, report, nil
 	}
+	reportLinks(&report, mangaName, links, nil, human, stderr)
 	for _, name := range skipped {
 		message := unsupportedFileMessage(name)
 		if human {
@@ -450,7 +451,9 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 		if e.IsArchive {
 			pages, err = scanner.PagesInArchive(e.Path)
 		} else {
-			pages, err = scanner.Pages(e.Path)
+			var pageLinks []scanner.Link
+			pages, pageLinks, err = scanner.Pages(input, e.Path)
+			reportLinks(&report, mangaName, pageLinks, &parsed, human, stderr)
 		}
 		if err != nil {
 			wrapped := fmt.Errorf("listing pages in %s: %w", e.Path, err)
@@ -782,6 +785,28 @@ func summarizeNames(label string, names []string, hint string) []string {
 		rest += " (" + hint + ")"
 	}
 	return append(lines, rest)
+}
+
+// reportLinks tells of the links the scanner did not follow: a warning for
+// each, naming the link and what is wrong with it, and nothing of it goes into
+// a volume (docs/adr/0014-links-stay-inside-the-input.md). chapter is the
+// chapter a page link was found in, and nil for a link found beside the
+// chapters.
+func reportLinks(report *mangaReport, mangaName string, links []scanner.Link, chapter *parser.ParsedChapter, human bool, stderr io.Writer) {
+	for _, link := range links {
+		message := fmt.Sprintf("found a link %q that %s, skipped", filepath.Base(link.Path), link.Why)
+		if human {
+			printlnTo(stderr, "warning:", message)
+		}
+		value := issue("warning", "link_skipped", "inspect", message)
+		value.Manga = mangaName
+		value.Path = absolutePath(link.Path)
+		if chapter != nil {
+			value.Chapter = copyFloat(&chapter.Chapter)
+			value.Special = chapter.Special
+		}
+		report.addIssue(value)
+	}
 }
 
 // unsupportedFileMessage explains why a file found alongside chapter
