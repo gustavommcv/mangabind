@@ -9,7 +9,7 @@ import (
 )
 
 func TestGroup(t *testing.T) {
-	entries, skipped, err := scanner.Scan("../../testdata/sample_manga")
+	entries, skipped, _, err := scanner.Scan("../../testdata/sample_manga")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +26,7 @@ func TestGroup(t *testing.T) {
 			unparsed = append(unparsed, e.Name)
 			continue
 		}
-		pages, err := scanner.Pages(e.Path)
+		pages, _, err := scanner.Pages("../../testdata/sample_manga", e.Path)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -12,7 +12,7 @@ import (
 func loadChapters(t *testing.T, root string) []Chapter {
 	t.Helper()
 
-	entries, skipped, err := scanner.Scan(root)
+	entries, skipped, _, err := scanner.Scan(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +27,7 @@ func loadChapters(t *testing.T, root string) []Chapter {
 		if !ok {
 			t.Fatalf("unexpected unparsed folder in fixture: %q", e.Name)
 		}
-		pages, err := scanner.Pages(e.Path)
+		pages, _, err := scanner.Pages(root, e.Path)
 		if err != nil {
 			t.Fatal(err)
 		}
