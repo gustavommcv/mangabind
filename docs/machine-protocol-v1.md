@@ -131,7 +131,7 @@ Version 1 codes are:
 | `library_scan_failed` | `inspect` | The batch root could not be read |
 | `input_scan_failed` | `inspect` | A manga input could not be read |
 | `unsupported_input_file` | `inspect` | A sibling file is not a supported chapter unit |
-| `link_skipped` | `inspect` | A symbolic link was not followed because it does not lead to a file inside the input folder (see [ADR 0014](adr/0014-links-stay-inside-the-input.md)); `path` is the link, and `chapter` is set for a page link |
+| `link_skipped` | `inspect` | A symbolic link was not followed because it does not lead to a file inside the input folder (see [ADR 0014](adr/0014-links-stay-inside-the-input.md)); `path` is the link, and `chapter` (and `volume`, when the chapter has one) is set for a page link |
 | `no_chapters_found` | `inspect` | No folder or CBZ chapter units were found |
 | `page_listing_failed` | `inspect` | A unit's pages could not be listed |
 | `empty_chapter` | `inspect` | A recognized unit contains no pages |

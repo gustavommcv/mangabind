@@ -120,6 +120,9 @@ func TestALinkLeadingOutsideTheInputIsNotPutInTheVolume(t *testing.T) {
 		if issue.Chapter == nil || *issue.Chapter != 1 {
 			t.Errorf("issue chapter = %v, want chapter 1", issue.Chapter)
 		}
+		if issue.Volume == nil || *issue.Volume != 1 {
+			t.Errorf("issue volume = %v, want volume 1, which the chapter is in", issue.Volume)
+		}
 		if !strings.HasPrefix(issue.Path, absolutePath(manga)) || !strings.Contains(issue.Message, "leads outside the input folder") {
 			t.Errorf("issue = %+v, want the link's own path and why it was skipped", issue)
 		}
