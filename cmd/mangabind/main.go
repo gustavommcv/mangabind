@@ -791,7 +791,8 @@ func summarizeNames(label string, names []string, hint string) []string {
 // each, naming the link and what is wrong with it, and nothing of it goes into
 // a volume (docs/adr/0014-links-stay-inside-the-input.md). chapter is the
 // chapter a page link was found in, and nil for a link found beside the
-// chapters.
+// chapters; the issue names its volume when it has one, so that a consumer
+// can tell which volume lacks the page.
 func reportLinks(report *mangaReport, mangaName string, links []scanner.Link, chapter *parser.ParsedChapter, human bool, stderr io.Writer) {
 	for _, link := range links {
 		message := fmt.Sprintf("found a link %q that %s, skipped", filepath.Base(link.Path), link.Why)
@@ -802,6 +803,7 @@ func reportLinks(report *mangaReport, mangaName string, links []scanner.Link, ch
 		value.Manga = mangaName
 		value.Path = absolutePath(link.Path)
 		if chapter != nil {
+			value.Volume = copyFloat(chapter.Volume)
 			value.Chapter = copyFloat(&chapter.Chapter)
 			value.Special = chapter.Special
 		}
