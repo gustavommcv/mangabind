@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -147,7 +148,7 @@ func (rejectingProgressWriter) Write([]byte) (int, error) {
 
 func TestMachineProgressSinkFailureDoesNotFailArchive(t *testing.T) {
 	output := filepath.Join(t.TempDir(), "out")
-	report, err := runMachine(cliConfig{
+	report, err := runMachine(context.Background(), cliConfig{
 		input:  realFixturePath(t, "sample_manga"),
 		output: output,
 	}, output, newProgressSink(rejectingProgressWriter{}))

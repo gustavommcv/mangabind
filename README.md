@@ -84,6 +84,12 @@ ignored. A mistyped flag may include a suggestion in the error message.
 Help goes to stdout. Errors, warnings, and setup notices such as the selected output folder go
 to stderr, keeping them separate from results on stdout.
 
+A volume is written under a temporary name (`.<volume>.<random>.part`) in the output folder and
+moved into place only when it is complete, so a run that fails or is interrupted never leaves half a
+volume, and never damages one that was there. Press Ctrl-C once to stop: the unfinished file is
+removed and the exit code is 130; a second Ctrl-C ends the program at once. See
+[the decision](docs/adr/0017-volumes-are-written-whole-or-not-at-all.md).
+
 ### Process a library
 
 With `--batch`, each immediate subfolder is treated as a separate manga. A failure in one manga

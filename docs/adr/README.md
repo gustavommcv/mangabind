@@ -22,3 +22,4 @@ you need the "why," not just the "what."
 | [0014](0014-links-stay-inside-the-input.md) | Follow a symbolic link only when it leads to a file inside the input; skip and report the rest |
 | [0015](0015-the-command-line-refuses-what-it-does-not-understand.md) | The command line refuses what it does not understand, and keeps help and notices off the result's stream |
 | [0016](0016-a-page-is-an-image.md) | A page is an image, by its name; known junk is left out silently and any other file with one warning per chapter |
+| [0017](0017-volumes-are-written-whole-or-not-at-all.md) | A volume is written under a part name and moved into place only when complete; Ctrl-C stops cleanly with exit code 130 |

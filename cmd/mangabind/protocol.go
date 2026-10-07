@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -243,13 +245,14 @@ func finalizeMangaReport(report *mangaReport, summary mangaSummary) {
 	report.Summary.Pages = summary.pages
 }
 
-func runMachine(cfg cliConfig, output string, progress progressSink) (machineReport, error) {
+func runMachine(ctx context.Context, cfg cliConfig, output string, progress progressSink) (machineReport, error) {
 	report := newMachineReport(modeFor(cfg.dryRun), cfg.batch)
 	report.InputPath = absolutePath(cfg.input)
 	report.OutputPath = absolutePath(output)
 
 	if !cfg.batch {
 		_, manga, err := processMangaDetailed(
+			ctx,
 			cfg.input,
 			output,
 			cfg.metadataFile,
@@ -281,8 +284,17 @@ func runMachine(cfg cliConfig, output string, progress progressSink) (machineRep
 		if !entry.IsDir() {
 			continue
 		}
+		// An interruption ends the batch: the manga that are left are not tried.
+		if cause := ctx.Err(); cause != nil {
+			value := issue("error", "interrupted", "inspect", interruptedBeforeNextManga)
+			value.Path = absolutePath(cfg.input)
+			value.Recoverable = true
+			report.addIssue(value)
+			return report, fmt.Errorf("interrupted: %w", cause)
+		}
 		mangaPath := filepath.Join(cfg.input, entry.Name())
 		_, manga, mangaErr := processMangaDetailed(
+			ctx,
 			mangaPath,
 			output,
 			"",
@@ -295,6 +307,9 @@ func runMachine(cfg cliConfig, output string, progress progressSink) (machineRep
 			progress,
 		)
 		report.addManga(manga)
+		if errors.Is(mangaErr, context.Canceled) {
+			return report, mangaErr
+		}
 		if mangaErr != nil {
 			errorCount++
 		}
