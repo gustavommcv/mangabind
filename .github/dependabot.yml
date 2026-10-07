@@ -1,0 +1,22 @@
+version: 2
+updates:
+  # The actions in .github/workflows are pinned to a commit; this is what moves
+  # the pins, with the tag each one stands for in the comment beside it.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # mangabind has no module dependencies today; this keeps it that way on
+  # purpose, by proposing the update the day one is added.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"
