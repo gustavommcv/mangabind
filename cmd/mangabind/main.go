@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/gustavommcv/mangabind/internal/cbz"
@@ -35,20 +36,28 @@ func main() {
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
-	machineRequested := hasFlag(args, "json") || hasFlag(args, "protocol-version")
-	cfg, fs, err := parseFlagsWithOutput(args, stderr)
+	machineRequested := flagRequested(args, "json") || flagRequested(args, "protocol-version")
+	cfg, fs, err := parseFlags(args)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			return 0 // usage was already printed by the flag package
+			// Help that was asked for is the output, so it goes to stdout (and
+			// can be piped into a pager); help that was not asked for is an
+			// error, and goes to stderr below.
+			printUsage(fs, stdout)
+			return 0
 		}
 		if machineRequested {
+			// The report on stdout is the whole answer; stderr stays free for
+			// the progress stream a consumer may have asked for.
 			report := newMachineReport("configuration", false)
 			value := issue("error", "invalid_arguments", "configuration", "The command-line arguments are invalid.")
 			value.Diagnostic = err.Error()
 			report.addIssue(value)
 			_ = writeMachineJSON(stdout, report)
+		} else {
+			printUsageError(stderr, fs, err)
 		}
-		return 2 // flag.ContinueOnError already printed the human usage error
+		return 2
 	}
 
 	if cfg.showProtocol {
@@ -80,8 +89,13 @@ func runCLI(args []string, stdout, stderr io.Writer) int {
 			value.Recoverable = true
 			report.addIssue(value)
 			_ = writeMachineJSON(stdout, report)
+		} else if len(args) == 0 {
+			// Run with nothing at all: show how to use it.
+			printUsage(fs, stderr)
 		} else {
-			printUsage(fs)
+			printlnTo(stderr, "mangabind: no -input given")
+			printlnTo(stderr, "Usage: mangabind -input <dir> [-output <dir>]")
+			printlnTo(stderr, hintForHelp)
 		}
 		return 2
 	}
@@ -104,7 +118,7 @@ func runCLI(args []string, stdout, stderr io.Writer) int {
 	if output == "" {
 		output = defaultOutputDir(cfg.input)
 		if !cfg.quiet && !cfg.json {
-			printfTo(stdout, "mangabind: no -output given, writing to %s\n", output)
+			printfTo(stderr, "mangabind: no -output given, writing to %s\n", output)
 		}
 	}
 
@@ -136,9 +150,28 @@ func runCLI(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func hasFlag(args []string, name string) bool {
+// flagRequested reports whether the boolean flag name is switched on anywhere
+// in args, in any of the spellings the flag package accepts (-json, --json,
+// -json=true). It is a lenient scan, not a parse: it is what lets a run that
+// asked for machine output get a machine-readable answer even when the rest of
+// the command line is the very thing that could not be parsed.
+func flagRequested(args []string, name string) bool {
 	for _, arg := range args {
-		if arg == "-"+name || arg == "--"+name {
+		if arg == "--" {
+			return false
+		}
+		trimmed := strings.TrimPrefix(strings.TrimPrefix(arg, "-"), "-")
+		if trimmed == arg {
+			continue
+		}
+		flagName, value, hasValue := strings.Cut(trimmed, "=")
+		if flagName != name {
+			continue
+		}
+		if !hasValue {
+			return true
+		}
+		if on, err := strconv.ParseBool(value); err == nil && on {
 			return true
 		}
 	}
@@ -166,20 +199,22 @@ func printlnTo(writer io.Writer, values ...any) {
 	_, _ = fmt.Fprintln(writer, values...)
 }
 
-// parseFlags defines and parses mangabind's flags, including the -i/-o/-q/-n
-// short aliases. It's separate from main, using its own FlagSet rather than
-// the package-level flag.CommandLine, specifically so it can be called
-// directly (and repeatedly) from tests: flag.ContinueOnError makes Parse
-// return errors instead of calling os.Exit, and a fresh FlagSet avoids the
-// "flag redefined" panic a second call to flag.StringVar on flag.CommandLine
-// would cause.
-func parseFlags(args []string) (cliConfig, *flag.FlagSet, error) {
-	return parseFlagsWithOutput(args, os.Stderr)
-}
+// hintForHelp ends every message about a command line that could not be used.
+const hintForHelp = "Try 'mangabind -h' for the examples and the list of flags."
 
-func parseFlagsWithOutput(args []string, output io.Writer) (cliConfig, *flag.FlagSet, error) {
+// parseFlags defines and parses mangabind's flags, including the -i/-o/-q/-n
+// short aliases. It uses its own FlagSet rather than the package-level
+// flag.CommandLine so that it can be called directly (and repeatedly) from
+// tests: flag.ContinueOnError makes Parse return errors instead of calling
+// os.Exit, and a fresh FlagSet avoids the "flag redefined" panic a second call
+// to flag.StringVar on flag.CommandLine would cause.
+//
+// It prints nothing. The flag package would print its own message and then the
+// whole usage for any mistake, and would send it to stderr even when the help
+// was asked for; runCLI says what there is to say, and where.
+func parseFlags(args []string) (cliConfig, *flag.FlagSet, error) {
 	fs := flag.NewFlagSet("mangabind", flag.ContinueOnError)
-	fs.SetOutput(output)
+	fs.SetOutput(io.Discard)
 
 	var cfg cliConfig
 	fs.StringVar(&cfg.input, "input", "", "directory to reorganize: a manga's chapters, or (with -batch) a library of manga folders")
@@ -197,14 +232,33 @@ func parseFlagsWithOutput(args []string, output io.Writer) (cliConfig, *flag.Fla
 	fs.BoolVar(&cfg.combine, "combine", false, "write the whole manga as one .cbz instead of one per volume, still reporting each volume's own chapters")
 	fs.BoolVar(&cfg.showProtocol, "protocol-version", false, "print machine-protocol compatibility information as JSON and exit")
 	fs.BoolVar(&cfg.showVersion, "version", false, "print the version and exit")
-	fs.Usage = func() { printUsage(fs) }
+	fs.Usage = func() {}
 
-	err := fs.Parse(args)
-	return cfg, fs, err
+	if err := fs.Parse(args); err != nil {
+		return cfg, fs, err
+	}
+	// The flag package stops reading flags at the first argument that is not
+	// one, and everything after it, flags included, is left over. Taking that
+	// for nothing would let `-dry-run` be dropped without a word, and a real
+	// run follow.
+	if fs.NArg() > 0 {
+		return cfg, fs, &unexpectedArgumentError{args: fs.Args()}
+	}
+	return cfg, fs, nil
 }
 
-func printUsage(fs *flag.FlagSet) {
-	printTo(fs.Output(), `mangabind reorganizes a chapter-by-chapter manga download into one .cbz per
+// unexpectedArgumentError is a word on the command line that is not a flag and
+// not the value of one. args is it and everything that followed.
+type unexpectedArgumentError struct{ args []string }
+
+func (e *unexpectedArgumentError) Error() string {
+	return fmt.Sprintf("unexpected argument %q", e.args[0])
+}
+
+// printUsage writes the help: what the tool does, how to call it, examples, and
+// every flag.
+func printUsage(fs *flag.FlagSet, w io.Writer) {
+	printTo(w, `mangabind reorganizes a chapter-by-chapter manga download into one .cbz per
 volume, ready for Kindle Comic Converter or any comic/manga reader.
 
 Usage:
@@ -212,15 +266,87 @@ Usage:
   mangabind -input <dir> -batch [-output <dir>]
 
 Examples:
-  mangabind -input "D:\Manga\Chainsaw Man"
-  mangabind -i "D:\Manga\Chainsaw Man" -o "D:\Volumes"
-  mangabind -input "D:\Manga" -batch
-  mangabind -input "D:\Manga\Some Manga" -metadata-file volumes.json
+  mangabind -input ~/Manga/"Chainsaw Man"
+  mangabind -i ~/Manga/"Chainsaw Man" -o ~/Volumes
+  mangabind -input ~/Manga -batch
+  mangabind -input ~/Manga/"Some Manga" -metadata-file volumes.json
+  mangabind -input "D:\Manga\Chainsaw Man"      (Windows)
 
 Flags:
 `)
+	fs.SetOutput(w)
 	fs.PrintDefaults()
-	printTo(fs.Output(), "\nMore info: https://github.com/gustavommcv/mangabind\n")
+	fs.SetOutput(io.Discard)
+	printTo(w, "\nMore info: https://github.com/gustavommcv/mangabind\n")
+}
+
+// printUsageError says, in a few lines and on w, what was wrong with the
+// command line and where to look: not the whole help, which buries the line the
+// person needs.
+func printUsageError(w io.Writer, fs *flag.FlagSet, err error) {
+	var unexpected *unexpectedArgumentError
+	if errors.As(err, &unexpected) {
+		printlnTo(w, "mangabind:", err)
+		printlnTo(w, "  If it is part of a path with spaces, put the whole path in quotes.")
+		for _, arg := range unexpected.args[1:] {
+			if strings.HasPrefix(arg, "-") {
+				printlnTo(w, "  The flags after it were not read.")
+				break
+			}
+		}
+	} else if name, ok := strings.CutPrefix(err.Error(), "flag provided but not defined: -"); ok {
+		message := "mangabind: unknown flag -" + name
+		if suggestion := closestFlag(fs, name); suggestion != "" {
+			message += " (did you mean -" + suggestion + "?)"
+		}
+		printlnTo(w, message)
+	} else {
+		printlnTo(w, "mangabind:", err)
+	}
+	printlnTo(w, hintForHelp)
+}
+
+// closestFlag is the flag whose name is nearest to the unknown one, when it is
+// near enough to be a slip of the fingers and not a different word: one edit for
+// a short name, two for a longer. The one-letter aliases are left out, since
+// everything is within one edit of them.
+func closestFlag(fs *flag.FlagSet, unknown string) string {
+	limit := 1
+	if len(unknown) >= 5 {
+		limit = 2
+	}
+	best, bestDistance := "", limit+1
+	fs.VisitAll(func(f *flag.Flag) {
+		if len(f.Name) < 2 {
+			return
+		}
+		if d := editDistance(unknown, f.Name); d < bestDistance {
+			best, bestDistance = f.Name, d
+		}
+	})
+	return best
+}
+
+// editDistance is the number of single-character insertions, deletions and
+// substitutions that turn a into b.
+func editDistance(a, b string) int {
+	previous := make([]int, len(b)+1)
+	for j := range previous {
+		previous[j] = j
+	}
+	for i := 1; i <= len(a); i++ {
+		current := make([]int, len(b)+1)
+		current[0] = i
+		for j := 1; j <= len(b); j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			current[j] = min(previous[j]+1, current[j-1]+1, previous[j-1]+cost)
+		}
+		previous = current
+	}
+	return previous[len(b)]
 }
 
 // defaultOutputDir picks a sibling directory next to input, named after it,
@@ -337,7 +463,7 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 		}
 		metaMap = m
 		if human && !quiet {
-			printfTo(stdout, "mangabind: using metadata file %s\n", mf)
+			printfTo(stderr, "mangabind: using metadata file %s\n", mf)
 		}
 	}
 
@@ -354,8 +480,9 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 		return summary, report, wrapped
 	}
 	if len(entries) == 0 {
-		if human && !quiet {
-			printfTo(stdout, "mangabind: no chapter folders or .cbz files found in %s\n", input)
+		if human {
+			// A warning, so -quiet does not hide that nothing was done.
+			printfTo(stderr, "warning: no chapter folders or .cbz files found in %s\n", input)
 		}
 		value := issue("warning", "no_chapters_found", "inspect", "No chapter folders or CBZ files were found.")
 		value.Manga = mangaName

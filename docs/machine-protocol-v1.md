@@ -62,6 +62,11 @@ serialize the final report may still produce a plain diagnostic there. Consumers
 case as a failed invocation, not as a progress event. Without `--progress-json`, the existing
 stderr behavior is unchanged.
 
+A command line that cannot be used still gets a report: when `--json` or `--protocol-version` appears
+anywhere on it, in any spelling the flag package reads (`-json`, `--json`, `--json=true`), stdout holds
+one report with an `invalid_arguments` issue and the exit code is 2. Nothing is written to stderr then,
+so the stream stays free for progress.
+
 The top-level object contains:
 
 - `protocol_version`, `tool`, `tool_version`, and `kind` (`"report"`)
@@ -125,7 +130,7 @@ Version 1 codes are:
 
 | Code | Stage | Meaning |
 |---|---|---|
-| `invalid_arguments` | `configuration` | A flag could not be parsed |
+| `invalid_arguments` | `configuration` | A flag could not be parsed, or an argument that is not a flag was left over |
 | `missing_input` | `configuration` | No input was provided |
 | `metadata_file_with_batch` | `configuration` | One shared metadata override was requested for batch mode |
 | `library_scan_failed` | `inspect` | The batch root could not be read |

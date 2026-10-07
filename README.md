@@ -118,6 +118,12 @@ Other flags: `-i`/`-o` are shorthands for `--input`/`--output`; `--dry-run` (`-n
 be written without writing anything; `--quiet` (`-q`) suppresses routine progress output, keeping
 only warnings/errors; `--version` prints the version. Run `mangabind --help` for the full list.
 
+Quote a path that has spaces. A word that is not a flag ends the flags, so mangabind refuses it
+(`unexpected argument "..."`, exit code 2) instead of ignoring what comes after it, `--dry-run`
+included. The help (`--help`) goes to stdout; a mistake gets a short message on stderr, with the
+nearest flag if you mistyped one; and notices such as the output folder it chose go to stderr too,
+so what is on stdout is the result.
+
 ### Machine-readable integration
 
 `--json` adds a versioned machine report without changing the existing human output mode. Combine it

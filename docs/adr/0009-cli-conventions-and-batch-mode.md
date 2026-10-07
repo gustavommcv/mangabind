@@ -4,7 +4,7 @@ Date: 2026-09-12
 
 ## Status
 
-Accepted
+Accepted; partly superseded. [ADR 0011](0011-versioned-machine-report.md) replaced the conclusion that machine-readable output was not wanted; [ADR 0015](0015-the-command-line-refuses-what-it-does-not-understand.md) settles where help and notices go and what the command line refuses, which this ADR's own rule (`stdout` for the result, `stderr` for everything else) already asked for. The rest stands: `--version`, a real help, `-i`/`-o`, `--dry-run`, `--quiet` and `--batch` are as decided here.
 
 ## Context
 
