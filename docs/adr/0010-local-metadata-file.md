@@ -72,3 +72,13 @@ downstream. Mangabind stays offline and dependency-free (ADR 0002, ADR 0007). If
 metadata source ever shows up, introducing a provider abstraction then - with two real
 implementations to design against instead of one imagined one - will be a better-informed decision
 than making it now.
+
+## Amendment (2026-10-07): what a file may say
+
+An audit ([`docs/audit-2026-10.md`](../audit-2026-10.md), finding 7) found a metadata file that mangabind accepted and could not use: a range `"1-9000000000"` made it allocate 216 GB and die with an out-of-memory crash and a Go stack dump; a volume number of `NaN`, `Inf` or `-3` was accepted and gave files named `Vol.NaN.cbz` or `Vol.-9223372036854775808.cbz`; and a chapter listed under two volumes silently went to the last one. The format is unchanged, and these are now refused or said:
+
+- A volume number is from 0 to 100000. Anything else (not a number, `NaN`, infinite, negative, larger) is an error, like the other invalid values.
+- A file may list at most 100,000 chapters, a range counting each of its chapters. A range that does not fit is refused before anything is allocated for it. No series comes near it.
+- A chapter listed under two *different* volumes is a warning, `metadata_duplicate_chapter`, one per file, and the last listing applies. Not an error: the file is written by hand and by other tools, and what it says is still clear. Listing a chapter twice under the same volume is not a conflict.
+- Independently of the file, a volume number too large for an int that comes from a chapter's name is written out in full in the volume's file name, not converted.
+

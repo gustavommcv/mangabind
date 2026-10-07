@@ -189,3 +189,9 @@ func TestVolumeFileName(t *testing.T) {
 		}
 	}
 }
+
+func TestVolumeFileNameOfAVolumeTooLargeForAnInt(t *testing.T) {
+	if got, want := VolumeFileName("Series", 1e20), "Series - Vol.100000000000000000000.cbz"; got != want {
+		t.Errorf("VolumeFileName = %q, want %q", got, want)
+	}
+}

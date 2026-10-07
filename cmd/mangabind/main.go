@@ -444,26 +444,28 @@ func runBatch(libraryInput, output string, quiet, dryRun bool) error {
 }
 
 func runBatchWithOutput(ctx context.Context, libraryInput, output string, quiet, dryRun, combine bool, stdout, stderr io.Writer) error {
-	entries, err := os.ReadDir(libraryInput)
+	mangaNames, links, err := scanner.Library(libraryInput)
 	if err != nil {
 		return fmt.Errorf("scanning library %s: %w", libraryInput, err)
+	}
+	// A link to a manga folder is not a manga of this run: say so, rather than
+	// leave a folder out without a word.
+	for _, link := range links {
+		printlnTo(stderr, "warning:", libraryLinkMessage(link))
 	}
 
 	var mangaCount, errCount, totalVolumes, totalPages int
 
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		// An interruption ends the batch: the manga that is left are not tried.
+	for _, name := range mangaNames {
+		// An interruption ends the batch: the manga that are left are not tried.
 		if err := ctx.Err(); err != nil {
 			printlnTo(stderr, "mangabind:", interruptedBeforeNextManga)
 			return fmt.Errorf("interrupted: %w", err)
 		}
 		mangaCount++
-		mangaPath := filepath.Join(libraryInput, e.Name())
+		mangaPath := filepath.Join(libraryInput, name)
 		if !quiet {
-			printfTo(stdout, "== %s ==\n", e.Name())
+			printfTo(stdout, "== %s ==\n", name)
 		}
 
 		// No explicit override in batch mode - each manga only picks up its
@@ -472,13 +474,15 @@ func runBatchWithOutput(ctx context.Context, libraryInput, output string, quiet,
 		if errors.Is(err, context.Canceled) {
 			return err
 		}
-		if err != nil {
-			errCount++
-			printfTo(stderr, "mangabind: %s: %v\n", e.Name(), err)
-			continue
-		}
+		// What a manga wrote counts, even when it also had an error: the volumes
+		// that were bound before one failed are on disk, and the tally is of the
+		// disk.
 		totalVolumes += summary.volumes
 		totalPages += summary.pages
+		if err != nil {
+			errCount++
+			printfTo(stderr, "mangabind: %s: %v\n", name, err)
+		}
 	}
 
 	printfTo(stdout, "mangabind: processed %d manga, %d volume(s), %d page(s) total\n", mangaCount, totalVolumes, totalPages)
@@ -569,6 +573,16 @@ func processMangaDetailed(ctx context.Context, input, output, metadataFile strin
 		metaMap = m
 		if human && !quiet {
 			printfTo(stderr, "mangabind: using metadata file %s\n", mf)
+		}
+		if duplicates := m.Duplicates(); len(duplicates) > 0 {
+			message := duplicateChaptersMessage(duplicates)
+			if human {
+				printlnTo(stderr, "warning:", message)
+			}
+			value := issue("warning", "metadata_duplicate_chapter", "metadata", message)
+			value.Manga = mangaName
+			value.Path = absolutePath(mf)
+			report.addIssue(value)
 		}
 	}
 
@@ -786,6 +800,9 @@ func processMangaDetailed(ctx context.Context, input, output, metadataFile strin
 				}
 			}
 			if err := cbz.WriteWithProgress(ctx, outPath, combined, onPage); err != nil {
+				// Nothing was written: the volumes were counted as the plan was
+				// made, and the tally is of what is on disk.
+				summary = mangaSummary{}
 				if errors.Is(err, context.Canceled) {
 					err = interruption(&report, mangaName, "write", "Interrupted while writing the combined series; the unfinished file was removed.", absolutePath(outPath), human, stderr, err)
 					finalizeMangaReport(&report, summary)
@@ -1065,6 +1082,24 @@ func summarizeNames(label string, names []string, hint string) []string {
 		rest += " (" + hint + ")"
 	}
 	return append(lines, rest)
+}
+
+// libraryLinkMessage says of a link found in a library folder that it was not
+// followed, in the words reportLinks uses for the links inside a manga.
+func libraryLinkMessage(link scanner.Link) string {
+	return fmt.Sprintf("found a link %q that %s, skipped", filepath.Base(link.Path), link.Why)
+}
+
+// duplicateChaptersMessage says that the metadata file lists chapters under
+// more than one volume, naming the first as an example: one warning for the
+// file, since overlapping ranges make a dozen of them at once.
+func duplicateChaptersMessage(duplicates []metadata.Duplicate) string {
+	first := duplicates[0]
+	chapter := fmt.Sprintf("%v%s", first.Chapter, first.Special)
+	if len(duplicates) == 1 {
+		return fmt.Sprintf("the metadata file lists chapter %s under volumes %v and %v; the last one, volume %v, is used", chapter, first.Earlier, first.Later, first.Later)
+	}
+	return fmt.Sprintf("the metadata file lists %d chapters under more than one volume (the first is chapter %s, under volumes %v and %v); the last listing of each is used", len(duplicates), chapter, first.Earlier, first.Later)
 }
 
 // reportLinks tells of the links the scanner did not follow: a warning for

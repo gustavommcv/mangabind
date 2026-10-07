@@ -133,6 +133,10 @@ file in the manga's input folder:
 Entries can be individual numbers (`"8.5"`), special chapters (`"21x1"`), or inclusive ranges
 (`"1-7"`). A volume number in a chapter's own name takes precedence over the file.
 
+Volume numbers go from 0 to 100000, and a file may list at most 100,000 chapters (a range counts
+each chapter in it); a file outside that is refused with an error. A chapter listed under two
+different volumes gets one warning for the file, and the last listing is the one that applies.
+
 Use `--metadata-file "path/to/mapping.json"` to select a different file. In batch mode, put a
 `mangabind.json` in each manga folder; one shared `--metadata-file` is not supported.
 
@@ -153,7 +157,9 @@ with one warning per chapter, and the leftovers of a file manager or downloader 
 one. See [the page rule](docs/adr/0016-a-page-is-an-image.md).
 
 A symbolic link is followed only if it points to a file inside the manga's input folder. Other
-links are skipped with a warning. See [the link policy](docs/adr/0014-links-stay-inside-the-input.md).
+links are skipped with a warning. With `--batch`, a link to a manga folder in the library is not
+followed either, and is reported the same way. See
+[the link policy](docs/adr/0014-links-stay-inside-the-input.md).
 
 ## Machine-readable integration
 

@@ -6,8 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
+
+	"github.com/gustavommcv/mangabind/internal/scanner"
 )
 
 // machineProtocolVersion changes only when a consumer must change how it
@@ -268,7 +269,7 @@ func runMachine(ctx context.Context, cfg cliConfig, output string, progress prog
 		return report, err
 	}
 
-	entries, err := os.ReadDir(cfg.input)
+	mangaNames, links, err := scanner.Library(cfg.input)
 	if err != nil {
 		wrapped := fmt.Errorf("scanning library %s: %w", cfg.input, err)
 		value := issue("error", "library_scan_failed", "inspect", "Couldn't inspect the library folder.")
@@ -279,11 +280,16 @@ func runMachine(ctx context.Context, cfg cliConfig, output string, progress prog
 		return report, wrapped
 	}
 
+	// A link to a manga folder is not a manga of this run: report it, rather
+	// than leave a folder out without a word.
+	for _, link := range links {
+		value := issue("warning", "link_skipped", "inspect", libraryLinkMessage(link))
+		value.Path = absolutePath(link.Path)
+		report.addIssue(value)
+	}
+
 	var errorCount int
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
+	for _, name := range mangaNames {
 		// An interruption ends the batch: the manga that are left are not tried.
 		if cause := ctx.Err(); cause != nil {
 			value := issue("error", "interrupted", "inspect", interruptedBeforeNextManga)
@@ -292,7 +298,7 @@ func runMachine(ctx context.Context, cfg cliConfig, output string, progress prog
 			report.addIssue(value)
 			return report, fmt.Errorf("interrupted: %w", cause)
 		}
-		mangaPath := filepath.Join(cfg.input, entry.Name())
+		mangaPath := filepath.Join(cfg.input, name)
 		_, manga, mangaErr := processMangaDetailed(
 			ctx,
 			mangaPath,

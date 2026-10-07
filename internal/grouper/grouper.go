@@ -203,13 +203,19 @@ func CombineVolumes(volumes []Volume) []Page {
 // chapterDirName's own reasoning); the number itself is what a reader
 // recognizes as the volume's own label.
 func volumeDirName(position int, number float64) string {
-	var numPart string
-	if number == math.Trunc(number) {
-		numPart = fmt.Sprintf("%02d", int(number))
-	} else {
-		numPart = strconv.FormatFloat(number, 'f', -1, 64)
+	return fmt.Sprintf("v%03d - Vol.%s", position, VolumeLabel(number))
+}
+
+// VolumeLabel writes a volume number the way file and folder names carry it: at
+// least two digits for a whole number ("01", "12"), and as short as it can be
+// for any other ("1.5"). A whole number too large for an int (a volume called
+// 1e20 in a chapter name) is written out in full rather than converted, which
+// used to give a name such as "Vol.-9223372036854775808".
+func VolumeLabel(number float64) string {
+	if number == math.Trunc(number) && math.Abs(number) < 1e15 {
+		return fmt.Sprintf("%02d", int(number))
 	}
-	return fmt.Sprintf("v%03d - Vol.%s", position, numPart)
+	return strconv.FormatFloat(number, 'f', -1, 64)
 }
 
 // detectGaps looks for missing whole-number chapters in chs. It considers

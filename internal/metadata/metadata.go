@@ -8,6 +8,7 @@ package metadata
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"regexp"
 	"strconv"
@@ -44,6 +45,18 @@ type Source struct {
 
 const supportedSchemaVersion = 1
 
+const (
+	// maxChapters is how many chapters a file may list, ranges counted
+	// chapter by chapter. No series has a tenth of it. It is what keeps a line
+	// such as "1-9000000000" from asking for hundreds of gigabytes (it used to:
+	// the program died with an out-of-memory crash and a Go stack dump).
+	maxChapters = 100_000
+
+	// maxVolumeNumber is the highest volume number a file may give. A number
+	// beyond what an int holds also made the volume's file name garbage.
+	maxVolumeNumber = 100_000
+)
+
 type chapterKey struct {
 	chapter float64
 	special string
@@ -52,7 +65,26 @@ type chapterKey struct {
 // Map resolves a (chapter, special) pair to its volume number, loaded from
 // a metadata File.
 type Map struct {
-	byChapter map[chapterKey]float64
+	byChapter  map[chapterKey]float64
+	duplicates []Duplicate
+}
+
+// Duplicate is a chapter the file lists under two different volumes. The last
+// listing is the one that applies, which is what the file says when read in
+// order; the others were never the person's intention, or the file is wrong,
+// and either way they are worth telling.
+type Duplicate struct {
+	Chapter float64
+	Special string
+	// Earlier is the volume it was listed under first, and Later the volume
+	// whose listing replaced it.
+	Earlier, Later float64
+}
+
+// Duplicates lists the chapters the file puts under more than one volume, in
+// the order the file lists them.
+func (m *Map) Duplicates() []Duplicate {
+	return m.duplicates
 }
 
 // Load reads and parses the metadata file at path.
@@ -72,17 +104,25 @@ func Load(path string) (*Map, error) {
 	}
 
 	m := &Map{byChapter: map[chapterKey]float64{}}
+	budget := maxChapters
 	for _, vol := range f.Volumes {
 		volNum, err := strconv.ParseFloat(vol.Number, 64)
 		if err != nil {
 			return nil, fmt.Errorf("%s: volume %q: invalid number: %w", path, vol.Number, err)
 		}
+		if math.IsNaN(volNum) || math.IsInf(volNum, 0) || volNum < 0 || volNum > maxVolumeNumber {
+			return nil, fmt.Errorf("%s: volume %q: invalid number: must be from 0 to %d", path, vol.Number, maxVolumeNumber)
+		}
 		for _, token := range vol.Chapters {
-			keys, err := expandChapterToken(token)
+			keys, err := expandChapterToken(token, budget)
 			if err != nil {
 				return nil, fmt.Errorf("%s: volume %q: %w", path, vol.Number, err)
 			}
+			budget -= len(keys)
 			for _, k := range keys {
+				if earlier, listed := m.byChapter[k]; listed && earlier != volNum {
+					m.duplicates = append(m.duplicates, Duplicate{Chapter: k.chapter, Special: k.special, Earlier: earlier, Later: volNum})
+				}
 				m.byChapter[k] = volNum
 			}
 		}
@@ -103,9 +143,14 @@ var (
 )
 
 // expandChapterToken parses one "chapters" array element into the one or
-// more chapterKeys it denotes.
-func expandChapterToken(token string) ([]chapterKey, error) {
+// more chapterKeys it denotes. budget is how many chapters the file may still
+// list; a range that is bigger is refused before anything is allocated for it.
+func expandChapterToken(token string, budget int) ([]chapterKey, error) {
 	if lo, hi, ok := parseRange(token); ok {
+		// hi-lo cannot overflow: both are non-negative, and hi >= lo.
+		if hi-lo >= budget {
+			return nil, fmt.Errorf("chapter range %q is too large: a file may list at most %d chapters", token, maxChapters)
+		}
 		keys := make([]chapterKey, 0, hi-lo+1)
 		for n := lo; n <= hi; n++ {
 			keys = append(keys, chapterKey{float64(n), ""})
@@ -113,6 +158,9 @@ func expandChapterToken(token string) ([]chapterKey, error) {
 		return keys, nil
 	}
 
+	if budget < 1 {
+		return nil, fmt.Errorf("too many chapters: a file may list at most %d", maxChapters)
+	}
 	m := chapterTokenRe.FindStringSubmatch(token)
 	if m == nil {
 		return nil, fmt.Errorf("invalid chapter token %q", token)
