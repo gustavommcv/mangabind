@@ -43,7 +43,7 @@ binaries.
 
 ## Consequences
 
-Contributors need a Go toolchain (1.23+) and nothing else. CI runs `gofmt -l`, `go vet`, and
+Contributors need a Go toolchain (1.23+ when this was decided; the minimum now lives in `go.mod`) and nothing else. CI runs `gofmt -l`, `go vet`, and
 `go test` on a Windows/macOS/Linux matrix. We give up some familiarity with contributors coming
 from a Python/JS manga-tooling background, and accept that as a reasonable tradeoff for the
 packaging and low-friction-build wins.

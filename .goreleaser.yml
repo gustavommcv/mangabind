@@ -19,6 +19,11 @@ builds:
     goarch:
       - amd64
       - arm64
+    # Keep the build machine's paths out of the binary and give the file the
+    # commit's own time, so that the same commit builds the same bytes.
+    flags:
+      - -trimpath
+    mod_timestamp: "{{ .CommitTimestamp }}"
     ldflags:
       - -s -w -X main.version={{ .Version }}
 
