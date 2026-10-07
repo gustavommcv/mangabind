@@ -4,52 +4,27 @@
 [![Release](https://img.shields.io/github/v/release/gustavommcv/mangabind)](https://github.com/gustavommcv/mangabind/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Mangabind reorganizes chapter-by-chapter manga folders or archives into one `.cbz` per volume, ready to hand
-off to [Kindle Comic Converter](https://github.com/ciromattia/kcc), mangapress, or any other reader/converter.
+Mangabind groups manga chapters into volumes. Give it a folder of chapter folders or CBZ files,
+and it creates one CBZ per volume, or a single archive for the whole series. Pages stay in chapter
+order, and their image contents are preserved.
 
-```
-Raw chapters (folder or .cbz per chapter)
-    -> Mangabind (groups chapters into volumes, writes .cbz)
-    -> KCC / mangapress (image processing: resize, format conversion, ...)
-    -> your reader (KOReader, Kindle, ...)
-```
+Open the result in a CBZ reader, or convert it for your e-reader with
+[mangapress](https://github.com/gustavommcv/mangapress) or
+[Kindle Comic Converter](https://github.com/ciromattia/kcc). For a desktop interface that combines
+grouping and conversion, see [Mangabound](https://github.com/gustavommcv/mangabound).
 
-## The problem
-
-Chapter collections often have each chapter as its own unit - either a folder of loose images, or (if you have
-that format) a `.cbz` file - with pages numbered from `001` in every one. Two things make
-turning that into per-volume archives non-trivial:
-
-- **Name collisions** - every chapter restarts page numbering, so chapters can't just be merged.
-- **Inconsistent naming** - a single manga is often scanned by different groups over time, each
-  using a different naming convention (`Vol.01 Ch.0001 - Title (en) [Group]`, `Chapter 1`, `c001`,
-  ...). Detection has to handle a mix of conventions within one input folder.
-
-Mangabind accepts a mix of chapter folders and `.cbz` chapter files in the same input directory.
-Other document formats, `.epub` and `.pdf`, aren't supported - those are already
-finished reading documents rather than raw scans, and merging them correctly would mean
-re-implementing a meaningful part of an EPUB/PDF assembler rather than reorganizing files (see
-[docs/adr/0007-cbz-chapter-support.md](docs/adr/0007-cbz-chapter-support.md)). Mangabind reports
-any `.epub`/`.pdf` chapter it finds instead of silently ignoring it.
-
-**Out of scope:** any image processing (resize, recompression, cropping, color conversion) - that
-is KCC's job, the next step in the pipeline. Mangabind also doesn't try to identify or reposition
-a "cover" page - if a source ships its cover as its own chapter (e.g. `Ch.0`), normal
-chapter-number ordering already places it first; readers display whatever page ends up first
-regardless. Deciding what counts as a cover is the source/scan group's call, not Mangabind's (see
-[docs/adr/0005-drop-cover-detection.md](docs/adr/0005-drop-cover-detection.md)). Mangabind only
-reorganizes files into `.cbz` containers; it never modifies, moves, or deletes your original
-downloaded files.
-
-## Status
-
-Early development - see [docs/adr](docs/adr/README.md) for the design decisions made so far.
+[Download](https://github.com/gustavommcv/mangabind/releases/latest) ·
+[Get started](#usage) · [Contribute](CONTRIBUTING.md)
 
 ## Install
 
-**macOS/Linux:**
+Download and extract a package from [GitHub Releases](https://github.com/gustavommcv/mangabind/releases/latest),
+or use the install script below. Releases include binaries for Windows, macOS, and Linux on x64
+and ARM64, plus `checksums.txt` for manual verification. Running a release does not require Go.
 
-```bash
+**macOS / Linux:**
+
+```sh
 curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.sh | sh
 ```
 
@@ -59,111 +34,85 @@ curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.
 irm https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.ps1 | iex
 ```
 
-Both scripts download the right binary for your OS/architecture from the
-[latest release](https://github.com/gustavommcv/mangabind/releases/latest) and put it on your
-PATH - no need to install Go. Prebuilt binaries and checksums for every release are also available
-there directly, if you'd rather install manually.
+The scripts install the latest release to `~/.local/bin` on macOS/Linux or
+`%LOCALAPPDATA%\Programs\mangabind` on Windows. On macOS/Linux, follow the printed instructions
+if the folder is not on your `PATH`. On Windows, restart your terminal after installation.
 
-Already have Go and want the dev version instead:
+With Go installed, you can also build and install the latest tagged version:
 
-```bash
+```sh
 go install github.com/gustavommcv/mangabind/cmd/mangabind@latest
 ```
 
 ### Update
 
-Run the same install command again - it always fetches the latest release and overwrites the
-existing binary in place. `mangabind --version` tells you what you currently have installed.
+Repeat the installation command you used. Check the installed version with `mangabind --version`.
 
 ### Uninstall
 
-Mangabind is a single self-contained binary; there's no installer state to clean up beyond it.
-
-- **macOS/Linux:** `rm ~/.local/bin/mangabind`
-- **Windows:** delete `%LOCALAPPDATA%\Programs\mangabind\mangabind.exe`. The installer added that
-  folder to your user `PATH`; if you'd rather remove that entry too, it's under Settings > System >
-  About > Advanced system settings > Environment Variables > `Path` (User variables).
-- **`go install`:** `rm $(go env GOPATH)/bin/mangabind` (or `%GOPATH%\bin\mangabind.exe` on Windows).
+Delete `~/.local/bin/mangabind` on macOS/Linux, or `%LOCALAPPDATA%\Programs\mangabind` on Windows.
+If you used `go install`, delete the executable from `GOBIN`, or from `GOPATH/bin` when `GOBIN`
+is unset. You can remove the Windows install folder from your user `Path` in Environment Variables.
 
 ## Usage
 
-```bash
-mangabind --input /path/to/downloaded/manga [--output /path/to/output]
+Point `--input` at a manga folder containing its chapters:
+
+```sh
+mangabind --input "Manga/Example Series"
 ```
 
-`--output` is optional. If you don't pass it, Mangabind writes to a sibling folder next to
-`--input`, named `<input folder> (mangabind)` - never inside `--input` itself, since that would
-make the next run see the output folder as a bogus chapter.
+Chapter folders and chapter CBZ files can be mixed in the same folder. EPUB and PDF input are
+not supported. Without `--output`, the archives go into a sibling folder named
+`Example Series (mangabind)`. To choose a destination:
 
-Got a whole library instead of just one manga - a folder full of manga folders, each with their
-own chapters? Add `--batch` and point `--input` at the library folder; every immediate subfolder
-is processed as its own manga, independently (one manga having issues never stops the rest):
-
-```bash
-mangabind --input /path/to/manga/library --batch
+```sh
+mangabind --input "Manga/Example Series" --output "Books/Example Series"
 ```
 
-Want the whole series as one file instead of one per volume - useful for a very long series where
-even one `.cbz` per volume is still a lot of files? Add `--combine`. Volume boundaries are computed
-exactly the same way; only the output is one `.cbz` instead of many, with each volume nested as an
-extra directory above its chapters (see [ADR 0012](docs/adr/0012-combine-series-into-one-volume.md)
-for why - it's what lets a downstream tool build a table of contents with both volumes and chapters
-in it):
+Use `--dry-run` to preview the grouping before writing archives. Read the report for unrecognized
+names, missing volume assignments, gaps, or conflicting chapters.
 
-```bash
-mangabind --input /path/to/manga --combine
+```sh
+mangabind --input "Manga/Example Series" --dry-run
 ```
 
-Other flags: `-i`/`-o` are shorthands for `--input`/`--output`; `--dry-run` (`-n`) shows what would
-be written without writing anything; `--quiet` (`-q`) suppresses routine progress output, keeping
-only warnings/errors; `--version` prints the version. Run `mangabind --help` for the full list.
+Use `--input` for the path and quote paths that contain spaces. Unexpected positional arguments
+and unknown flags are rejected with exit code 2, so a trailing `--dry-run` cannot be silently
+ignored. A mistyped flag may include a suggestion in the error message.
 
-Quote a path that has spaces. A word that is not a flag ends the flags, so mangabind refuses it
-(`unexpected argument "..."`, exit code 2) instead of ignoring what comes after it, `--dry-run`
-included. The help (`--help`) goes to stdout; a mistake gets a short message on stderr, with the
-nearest flag if you mistyped one; and notices such as the output folder it chose go to stderr too,
-so what is on stdout is the result.
+Help goes to stdout. Errors, warnings, and setup notices such as the selected output folder go
+to stderr, keeping them separate from results on stdout.
 
-### Machine-readable integration
+### Process a library
 
-`--json` adds a versioned machine report without changing the existing human output mode. Combine it
-with `--dry-run` to inspect every chapter, parser result, metadata assignment, warning, conflict,
-gap, and intended output without writing files; omit `--dry-run` to execute and report which outputs
-were written:
+With `--batch`, each immediate subfolder is treated as a separate manga. A failure in one manga
+does not stop the others.
 
-```bash
-mangabind --input "/path/to/manga" --output "/path/to/volumes" --dry-run --json
-mangabind --input "/path/to/manga" --output "/path/to/volumes" --json
+```sh
+mangabind --input "Manga" --batch
 ```
 
-For live progress in a script or another frontend, add `--progress-json`. Stdout still contains
-one final report; stderr becomes newline-delimited structured progress:
+### Combine a series
 
-```bash
-mangabind --input "/path/to/manga" --json --progress-json >report.json 2>progress.jsonl
+`--combine` writes one CBZ for the whole manga, with volumes containing chapter folders inside
+the archive. The chapter-to-volume assignments stay the same.
+
+```sh
+mangabind --input "Manga/Example Series" --combine
 ```
 
-This is optional and does not change the normal terminal output. The progress counts reflect
-pages actually copied into the CBZ, while the final report and exit code remain authoritative.
+To convert that structure into an EPUB with volumes and chapters in its table of contents, use
+mangapress's `--nested-toc` option.
 
-`mangabind --protocol-version` returns the compatibility handshake used by GUI consumers. See the
-[machine protocol v1 specification](docs/machine-protocol-v1.md) and
-[ADR 0011](docs/adr/0011-versioned-machine-report.md). Scripts must check `protocol_version` rather
-than infer compatibility from the release version.
-
-### Links
-
-A symbolic link in a manga folder is followed only when it leads to a file inside that folder. A
-link that leads anywhere else, to nothing, or to a folder is left out and reported as a
-`link_skipped` warning, so that a manga folder from someone else cannot put a file from your disk
-into a volume. If you keep your library as links into another place on purpose, put a copy of the
-file in the manga folder instead. See [ADR 0014](docs/adr/0014-links-stay-inside-the-input.md).
+`-i`, `-o`, and `-n` are shortcuts for `--input`, `--output`, and `--dry-run`.
+Use `--quiet` (`-q`) to show only warnings and errors, or `mangabind --help` for all options.
 
 ## When chapter names don't carry a volume number
 
-Some sources only name chapters `Chapter 1`, `Chapter 2`, ... with no volume information at all -
-Mangabind has no way to know which volume each one belongs to, so those chapters are reported and
-skipped rather than guessed into the wrong place. Fix that with a small local metadata file:
+Names such as `Chapter 1` identify a chapter but not its volume. Mangabind reports and skips
+chapters without a volume assignment. To supply the missing assignments, save a `mangabind.json`
+file in the manga's input folder:
 
 ```json
 {
@@ -175,45 +124,45 @@ skipped rather than guessed into the wrong place. Fix that with a small local me
 }
 ```
 
-Save it as `mangabind.json` inside the manga's own input folder and Mangabind picks it up
-automatically (or pass `--metadata-file path/to/file.json` explicitly - not combinable with
-`--batch`, since each manga in a library needs its own file). `chapters` entries can be a single
-number (`"8.5"`, or `"21x1"` for a bonus/special chapter) or an inclusive range (`"1-7"`). A volume
-number already present in a chapter's own name always wins; the file only fills in what's missing.
+Entries can be individual numbers (`"8.5"`), special chapters (`"21x1"`), or inclusive ranges
+(`"1-7"`). A volume number in a chapter's own name takes precedence over the file.
 
-The file may also carry facts that other tools keep about the manga. Mangabind reads `volumes` and
-nothing else (`manga` and `source` are informational), and it ignores any other key, including keys
-it does not know inside `manga`. [Mangabound](https://github.com/gustavommcv/mangabound), for
-instance, remembers a folder's author and language there:
+Use `--metadata-file "path/to/mapping.json"` to select a different file. In batch mode, put a
+`mangabind.json` in each manga folder; one shared `--metadata-file` is not supported.
 
-```json
-{
-  "schema_version": 1,
-  "manga": { "title": "Example Manga", "author": "Some Author", "language": "en" },
-  "volumes": []
-}
+Mangabind uses the `volumes` field for grouping and does not fetch metadata online. Other fields,
+including `manga` and `source`, may be stored by tools such as Mangabound without affecting
+grouping. An empty `volumes` list leaves filename-based grouping unchanged; `schema_version: 1`
+is still required. See [the metadata decision](docs/adr/0010-local-metadata-file.md) for the format.
+
+## Files and links
+
+Mangabind copies pages into new archives. It does not resize, crop, recompress, or choose a cover;
+the first page follows chapter and page ordering. Keep generated archives outside the input folder.
+
+A symbolic link is followed only if it points to a file inside the manga's input folder. Other
+links are skipped with a warning. See [the link policy](docs/adr/0014-links-stay-inside-the-input.md).
+
+## Machine-readable integration
+
+`--json` writes one report to stdout. Add `--progress-json` for live progress on stderr:
+
+```sh
+mangabind --input "Manga/Example Series" --dry-run --json
+mangabind --input "Manga/Example Series" --json --progress-json >report.json 2>progress.jsonl
 ```
 
-Such a file changes nothing about a run - with no volumes listed, chapters are matched by their own
-names exactly as if it were not there. `schema_version` is still required, so a tool that writes the
-file must set it.
-
-Mangabind never fetches this data itself - see
-[docs/adr/0010-local-metadata-file.md](docs/adr/0010-local-metadata-file.md) for why, and where
-generating this file from an external metadata API should live instead.
-
-## How detection works
-
-Chapter-folder parsing is implemented as a chain of pluggable strategies rather than a single
-fixed regex, because naming conventions vary even within one manga. See
-[docs/adr/0003-pluggable-chapter-parsing.md](docs/adr/0003-pluggable-chapter-parsing.md) for the
-reasoning, and [CONTRIBUTING.md](CONTRIBUTING.md) for how to add a parser for a naming convention
-Mangabind doesn't yet recognize.
+Use `mangabind --protocol-version` to check compatibility. The
+[protocol reference](docs/machine-protocol-v1.md) defines fields, capabilities, issues, and progress
+events. Completion is determined by the final report and exit code, not progress alone.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+For a bug report, include your version, command, example chapter names, and the expected grouping.
+Small examples are usually enough to reproduce a naming problem. See [CONTRIBUTING.md](CONTRIBUTING.md)
+for setup, tests, and adding a parser, or browse the [architecture decisions](docs/adr/README.md).
+Report suspected vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE).
