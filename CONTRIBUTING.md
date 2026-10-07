@@ -1,70 +1,83 @@
 # Contributing to Mangabind
 
-## Setup
+Bug reports, chapter-name examples, documentation fixes, and code contributions are welcome.
+For bugs, include the version, command, expected result, and actual output. Replace personal paths
+and share the smallest example that reproduces the problem.
 
-Requires Go 1.26+ (the minimum is the `go` line of `go.mod`, and CI follows it). No other dependencies to install.
+## Setup and checks
 
-```bash
+Use the Go version required by [go.mod](go.mod), currently Go 1.26 or later. The project has no
+third-party runtime dependencies.
+
+```sh
 go build ./...
-go test -race ./...   # -race needs a C compiler; plain `go test ./...` works without it
+go test ./...
 go vet ./...
-gofmt -l .            # should print nothing; run `gofmt -w .` to fix
-go mod tidy -diff     # should print nothing: go.mod and go.sum are as `go mod tidy` leaves them
+gofmt -l .
+go mod tidy -diff
 ```
 
-CI runs the same checks on Windows, macOS, and Linux for every PR (the race detector everywhere but
-Windows), plus [golangci-lint](https://golangci-lint.run/) (config in `.golangci.yml`), `govulncheck`
-(also once a week, since an advisory can land without a change here) and a `goreleaser --snapshot`
-build to catch a broken release config early. Run `golangci-lint run ./...` locally if you have it
-installed.
+Formatting and module checks should print nothing. `gofmt -w .` applies formatting. With a C
+compiler installed, also run `go test -race ./...` to check for data races. To run the CLI
+directly from the checkout:
 
-Everything the workflows use is pinned: each action to a commit (the tag it stands for is in the
-comment beside it) and each tool to a version. Dependabot proposes the updates, one pull request a
-week for the actions.
+```sh
+go run ./cmd/mangabind --help
+```
+
+[CI](.github/workflows/ci.yml) builds and tests on Windows, macOS, and Linux, with race detection
+on macOS and Linux. It also runs golangci-lint and a GoReleaser snapshot build. A separate
+[vulnerability check](.github/workflows/govulncheck.yml) runs on PRs, pushes to `main`, and weekly.
+Actions and tools are pinned; Dependabot proposes weekly action updates. Use the workflow files
+for the current versions and commands.
 
 ## Releasing
 
-A release is a `vX.Y.Z` tag on a commit that is on `main`. The Release workflow runs the same checks
-as CI and `govulncheck` on that commit, refuses a tag whose commit is not on `main`, and only then
-builds and publishes the archives with goreleaser.
+A `vX.Y.Z` tag triggers [the release workflow](.github/workflows/release.yml). It checks that the
+tagged commit is on `main` and runs CI and vulnerability checks before GoReleaser builds and
+publishes the archives. Obtain maintainer approval before creating a release tag.
 
-## Testing against real manga
+## Tests and fixtures
 
-`testdata/` holds small synthetic fixtures (empty or placeholder files, real folder/file *names*)
-that are committed and used by `go test`. If you have real manga folders or CBZ files, drop them
-under `examples/` at the repo root - that directory is git-ignored (it's copyrighted content) and
-is only for manual local verification, never for automated tests.
+Add regression tests for changed behavior, including errors that callers need to handle.
+Use small synthetic fixtures in `testdata/`; parser tests usually need only chapter-name strings.
+Keep real manga used for local checks in the ignored `examples/` directory. Do not commit manga
+pages or make automated tests depend on a private collection.
 
-## Adding support for a new chapter-naming convention
+### Add a chapter-naming convention
 
-This is the easiest way to contribute and the most valuable one: naming conventions vary a lot
-across scan groups and sites (see [docs/adr/0003-pluggable-chapter-parsing.md](docs/adr/0003-pluggable-chapter-parsing.md)
-for why).
+1. Implement `ChapterNameParser` in `internal/parser/`.
+2. Register the parser from most to least specific.
+3. Add table-driven tests for matching names, near misses, and existing conventions it could overlap.
+4. Return `false` when a name cannot be recognized confidently, so another parser can try it.
 
-1. Add a new file under `internal/parser/` implementing the `ChapterNameParser` interface.
-2. Register it in the parser registry, ordered from most to least specific.
-3. Add table-driven tests with real (or realistic) folder-name examples - no need for actual
-   images, just the strings.
-4. If a folder name genuinely can't be parsed with confidence, don't guess: return `false` so it
-   surfaces in the "unprocessed" report instead of being silently mis-grouped.
+See [ADR 0003](docs/adr/0003-pluggable-chapter-parsing.md) for the parser design.
 
-## Scope
+## Project scope
 
-Mangabind reorganizes files into `.cbz` archives. It does not resize, recompress, crop, or
-otherwise touch image content - that's explicitly out of scope (it's KCC's job). PRs that add
-image processing will be redirected elsewhere.
+Mangabind groups chapters and writes CBZ archives. Image conversion belongs in a separate tool,
+such as mangapress or KCC. Covers follow page ordering; there is no cover-detection step.
 
-Mangabind also doesn't try to identify or reposition a "cover" page - see
-[docs/adr/0005-drop-cover-detection.md](docs/adr/0005-drop-cover-detection.md) for why. PRs adding
-cover-detection heuristics will be redirected too.
+Volume assignments can come from names or a local metadata file. Tools that retrieve online
+metadata can write that file; Mangabind itself stays offline. See the decisions on
+[covers](docs/adr/0005-drop-cover-detection.md) and
+[metadata](docs/adr/0010-local-metadata-file.md).
 
-Mangabind resolves missing volume numbers from a local metadata file only (`internal/metadata`) -
-it never talks to the network. PRs adding an external metadata API (or any other) client, a `MetadataProvider`
-abstraction, or manga/work identification will be redirected; see
-[docs/adr/0010-local-metadata-file.md](docs/adr/0010-local-metadata-file.md) for why. A tool that
-*generates* a metadata file from an external source is welcome as its own separate project.
+Changes to JSON reports or progress events must preserve the
+[machine protocol](docs/machine-protocol-v1.md), or explicitly version a breaking change.
 
-## Language
+## Pull requests
 
-Code, comments, commit messages, and docs are all in English, to keep the project approachable
-for contributors regardless of what manga/language they personally read.
+Keep each PR focused and explain the change and its verification. Write code comments,
+documentation, commit messages, and PR descriptions in English. Check instructions against the
+current CLI and workflows. Preserve accepted ADRs and audit evidence; record a changed decision
+in a new ADR when it needs one.
+
+Before merging, verify the remote checks for the exact PR commit and wait for the maintainer's
+approval. Passing local checks does not replace a successful remote run. If the run cannot be
+verified, report the commit and the visibility problem rather than treating the work as complete.
+Report suspected vulnerabilities privately through [SECURITY.md](SECURITY.md).
+
+The [architecture decisions](docs/adr/README.md) explain the design. The
+[October 2026 audit](docs/audit-2026-10.md) records findings at its stated snapshot; check linked
+follow-ups and current code before picking up a finding.
