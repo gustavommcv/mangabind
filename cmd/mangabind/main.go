@@ -2,15 +2,18 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/gustavommcv/mangabind/internal/cbz"
 	"github.com/gustavommcv/mangabind/internal/grouper"
@@ -31,11 +34,39 @@ type cliConfig struct {
 	showVersion, showProtocol                         bool
 }
 
+// exitInterrupted is the exit code of a run that was stopped by Ctrl-C or by
+// SIGTERM: 128 plus the number of SIGINT, as shells report it.
+const exitInterrupted = 130
+
 func main() {
-	os.Exit(runCLI(os.Args[1:], os.Stdout, os.Stderr))
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	// The first Ctrl-C asks the run to stop and clean up. The handler is then
+	// let go, so that a second one is not caught and ends the program at once,
+	// for the case where cleaning up is itself taking too long.
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
+	os.Exit(runCLIContext(ctx, os.Args[1:], os.Stdout, os.Stderr))
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
+	return runCLIContext(context.Background(), args, stdout, stderr)
+}
+
+// exitCode is what a run that ended with err exits with: 130 when it was
+// interrupted, 1 for any other failure.
+func exitCode(err error) int {
+	if errors.Is(err, context.Canceled) {
+		return exitInterrupted
+	}
+	return 1
+}
+
+// runCLIContext is the whole program. ctx is done when the person interrupts
+// it: the volume being written is then removed, nothing further is started, and
+// the exit code is 130.
+func runCLIContext(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	machineRequested := flagRequested(args, "json") || flagRequested(args, "protocol-version")
 	cfg, fs, err := parseFlags(args)
 	if err != nil {
@@ -127,25 +158,28 @@ func runCLI(args []string, stdout, stderr io.Writer) int {
 		if cfg.progressJSON {
 			progress = newProgressSink(stderr)
 		}
-		report, err := runMachine(cfg, output, progress)
+		report, err := runMachine(ctx, cfg, output, progress)
 		if writeErr := writeMachineJSON(stdout, report); writeErr != nil {
 			printlnTo(stderr, "mangabind: writing JSON report:", writeErr)
 			return 1
 		}
 		if err != nil {
-			return 1
+			return exitCode(err)
 		}
 		return 0
 	}
 
 	if cfg.batch {
-		err = runBatchWithOutput(cfg.input, output, cfg.quiet, cfg.dryRun, cfg.combine, stdout, stderr)
+		err = runBatchWithOutput(ctx, cfg.input, output, cfg.quiet, cfg.dryRun, cfg.combine, stdout, stderr)
 	} else {
-		_, err = processMangaWithOutput(cfg.input, output, cfg.metadataFile, cfg.quiet, cfg.dryRun, cfg.combine, stdout, stderr)
+		_, err = processMangaWithOutput(ctx, cfg.input, output, cfg.metadataFile, cfg.quiet, cfg.dryRun, cfg.combine, stdout, stderr)
 	}
 	if err != nil {
-		printlnTo(stderr, "mangabind:", err)
-		return 1
+		// An interruption has already been said, where it happened.
+		if !errors.Is(err, context.Canceled) {
+			printlnTo(stderr, "mangabind:", err)
+		}
+		return exitCode(err)
 	}
 	return 0
 }
@@ -406,10 +440,10 @@ func namesAFolder(path string) bool {
 // volumes) is reported but never stops the rest of the batch, the same way
 // one bad chapter never stops the rest of a single manga's volumes.
 func runBatch(libraryInput, output string, quiet, dryRun bool) error {
-	return runBatchWithOutput(libraryInput, output, quiet, dryRun, false, os.Stdout, os.Stderr)
+	return runBatchWithOutput(context.Background(), libraryInput, output, quiet, dryRun, false, os.Stdout, os.Stderr)
 }
 
-func runBatchWithOutput(libraryInput, output string, quiet, dryRun, combine bool, stdout, stderr io.Writer) error {
+func runBatchWithOutput(ctx context.Context, libraryInput, output string, quiet, dryRun, combine bool, stdout, stderr io.Writer) error {
 	entries, err := os.ReadDir(libraryInput)
 	if err != nil {
 		return fmt.Errorf("scanning library %s: %w", libraryInput, err)
@@ -421,6 +455,11 @@ func runBatchWithOutput(libraryInput, output string, quiet, dryRun, combine bool
 		if !e.IsDir() {
 			continue
 		}
+		// An interruption ends the batch: the manga that is left are not tried.
+		if err := ctx.Err(); err != nil {
+			printlnTo(stderr, "mangabind:", interruptedBeforeNextManga)
+			return fmt.Errorf("interrupted: %w", err)
+		}
 		mangaCount++
 		mangaPath := filepath.Join(libraryInput, e.Name())
 		if !quiet {
@@ -429,7 +468,10 @@ func runBatchWithOutput(libraryInput, output string, quiet, dryRun, combine bool
 
 		// No explicit override in batch mode - each manga only picks up its
 		// own mangabind.json convention file, if it has one.
-		summary, err := processMangaWithOutput(mangaPath, output, "", quiet, dryRun, combine, stdout, stderr)
+		summary, err := processMangaWithOutput(ctx, mangaPath, output, "", quiet, dryRun, combine, stdout, stderr)
+		if errors.Is(err, context.Canceled) {
+			return err
+		}
 		if err != nil {
 			errCount++
 			printfTo(stderr, "mangabind: %s: %v\n", e.Name(), err)
@@ -474,15 +516,34 @@ func resolveMetadataFile(input, explicit string) string {
 }
 
 func processManga(input, output, metadataFile string, quiet, dryRun bool) (mangaSummary, error) {
-	return processMangaWithOutput(input, output, metadataFile, quiet, dryRun, false, os.Stdout, os.Stderr)
+	return processMangaWithOutput(context.Background(), input, output, metadataFile, quiet, dryRun, false, os.Stdout, os.Stderr)
 }
 
-func processMangaWithOutput(input, output, metadataFile string, quiet, dryRun, combine bool, stdout, stderr io.Writer) (mangaSummary, error) {
-	summary, _, err := processMangaDetailed(input, output, metadataFile, quiet, dryRun, combine, true, stdout, stderr, nil)
+func processMangaWithOutput(ctx context.Context, input, output, metadataFile string, quiet, dryRun, combine bool, stdout, stderr io.Writer) (mangaSummary, error) {
+	summary, _, err := processMangaDetailed(ctx, input, output, metadataFile, quiet, dryRun, combine, true, stdout, stderr, nil)
 	return summary, err
 }
 
-func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, combine, human bool, stdout, stderr io.Writer, progress progressSink) (mangaSummary, mangaReport, error) {
+// interruptedBeforeNextManga is said when a batch is stopped between two manga.
+const interruptedBeforeNextManga = "Interrupted: the manga that were left were not started."
+
+// interruption records that the run was stopped by a signal: as an issue in the
+// report, and, for the terminal, as a line of its own. It returns the error
+// that carries the interruption up to runCLIContext, which exits with 130. The
+// caller finalizes the report and returns.
+func interruption(report *mangaReport, mangaName, stage, message, path string, human bool, stderr io.Writer, cause error) error {
+	value := issue("error", "interrupted", stage, message)
+	value.Manga = mangaName
+	value.Path = path
+	value.Recoverable = true
+	report.addIssue(value)
+	if human {
+		printlnTo(stderr, "mangabind:", message)
+	}
+	return fmt.Errorf("interrupted: %w", cause)
+}
+
+func processMangaDetailed(ctx context.Context, input, output, metadataFile string, quiet, dryRun, combine, human bool, stdout, stderr io.Writer, progress progressSink) (mangaSummary, mangaReport, error) {
 	var summary mangaSummary
 	mangaName := folderName(input)
 	report := newMangaReport(mangaName, absolutePath(input))
@@ -552,6 +613,11 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 	var unparsed []string
 
 	for _, e := range entries {
+		if cause := ctx.Err(); cause != nil {
+			err := interruption(&report, mangaName, "inspect", "Interrupted while inspecting the chapters; nothing was written.", "", human, stderr, cause)
+			finalizeMangaReport(&report, summary)
+			return summary, report, err
+		}
 		parsed, parserName, ok := reg.Parse(e.Name)
 		unit := unitReport{
 			Name:               e.Name,
@@ -719,7 +785,12 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 					}
 				}
 			}
-			if err := cbz.WriteWithProgress(outPath, combined, onPage); err != nil {
+			if err := cbz.WriteWithProgress(ctx, outPath, combined, onPage); err != nil {
+				if errors.Is(err, context.Canceled) {
+					err = interruption(&report, mangaName, "write", "Interrupted while writing the combined series; the unfinished file was removed.", absolutePath(outPath), human, stderr, err)
+					finalizeMangaReport(&report, summary)
+					return summary, report, err
+				}
 				wrapped := fmt.Errorf("writing combined series: %w", err)
 				value := issue("error", "combined_write_failed", "write", "Couldn't write the combined series.")
 				value.Manga = mangaName
@@ -739,8 +810,27 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 			}
 		}
 	} else {
+		// stopAt ends the run at result.Volumes[index]: that volume and the ones
+		// after it are in the report as planned and not written, as they would
+		// be after a failure, and the report says why.
+		stopAt := func(index int, message, path string, cause error) (mangaSummary, mangaReport, error) {
+			for _, vol := range result.Volumes[index:] {
+				report.Volumes = append(report.Volumes, volumeReport{
+					Number:     vol.Number,
+					OutputPath: absolutePath(filepath.Join(output, cbz.VolumeFileName(mangaName, vol.Number))),
+					PageCount:  len(vol.Pages),
+					Chapters:   chapterNamesForVolume(report.Units, vol.Number),
+				})
+			}
+			err := interruption(&report, mangaName, "write", message, path, human, stderr, cause)
+			finalizeMangaReport(&report, summary)
+			return summary, report, err
+		}
 		for index, vol := range result.Volumes {
 			outPath := filepath.Join(output, cbz.VolumeFileName(mangaName, vol.Number))
+			if cause := ctx.Err(); cause != nil {
+				return stopAt(index, fmt.Sprintf("Interrupted before volume %v was written.", vol.Number), "", cause)
+			}
 			volume := volumeReport{
 				Number:     vol.Number,
 				OutputPath: absolutePath(outPath),
@@ -762,7 +852,10 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 						emitWrite("advanced", index, vol.Number, completedPages+completed)
 					}
 				}
-				if err := cbz.WriteWithProgress(outPath, vol.Pages, onPage); err != nil {
+				if err := cbz.WriteWithProgress(ctx, outPath, vol.Pages, onPage); err != nil {
+					if errors.Is(err, context.Canceled) {
+						return stopAt(index, fmt.Sprintf("Interrupted while writing volume %v; the unfinished file was removed.", vol.Number), absolutePath(outPath), err)
+					}
 					// Report it and bind the next volume: what can be bound is
 					// bound, and the error returned at the end says that
 					// something was not. The pages that were copied stay in the

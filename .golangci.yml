@@ -3,10 +3,11 @@ version: "2"
 linters:
   settings:
     errcheck:
-      # Deferred/cleanup Close() calls are consistently the lowest-value
-      # thing errcheck flags here - the one Close() that actually matters
-      # for a correct .cbz (zip.Writer.Close, which writes the central
-      # directory) is already checked explicitly in internal/cbz/cbz.go.
+      # Deferred/cleanup Close() calls on files that were only read are
+      # consistently the lowest-value thing errcheck flags here. The closes
+      # that matter for a correct .cbz - zip.Writer.Close (the central
+      # directory), the Sync and the Close of the file written - are checked
+      # explicitly in internal/cbz/cbz.go (see docs/adr/0017).
       exclude-functions:
         - (io.Closer).Close
         - (*os.File).Close

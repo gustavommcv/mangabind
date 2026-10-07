@@ -2,6 +2,7 @@ package cbz
 
 import (
 	"archive/zip"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -74,7 +75,7 @@ func TestWriteWithProgressReportsOnlyCopiedPages(t *testing.T) {
 		{SourcePath: source, ArchiveName: "c001/p0002.jpg"},
 	}
 	var completed []int
-	if err := WriteWithProgress(filepath.Join(dir, "book.cbz"), pages, func(n int) {
+	if err := WriteWithProgress(context.Background(), filepath.Join(dir, "book.cbz"), pages, func(n int) {
 		completed = append(completed, n)
 	}); err != nil {
 		t.Fatal(err)

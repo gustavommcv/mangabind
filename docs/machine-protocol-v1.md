@@ -55,7 +55,7 @@ and `"completed"` and include the 1-based `volume_index`, `volume_count`, numeri
 they reset for the next manga. `advanced` means a page was copied into the archive, not that the
 archive was closed. Only `completed` follows a successful close. In `--combine`, progress identifies
 the source volume currently being copied into the single output archive. `--dry-run` emits no write
-events. The final stdout report and exit code, not progress, determine whether the command succeeded. When a volume fails to write, the counters keep the pages that were copied into it and go on with the next volume: they never go back.
+events. The final stdout report and exit code, not progress, determine whether the command succeeded. When a run is interrupted, no `completed` event follows for the volume that was being written. When a volume fails to write, the counters keep the pages that were copied into it and go on with the next volume: they never go back.
 
 With `--progress-json`, stderr is reserved for progress during normal execution. A failure to
 serialize the final report may still produce a plain diagnostic there. Consumers must treat that
@@ -151,6 +151,7 @@ Version 1 codes are:
 | `chapter_conflict` | `group` | Multiple sources claim the same volume/chapter key |
 | `no_volumes_produced` | `group` | No intended output survived grouping |
 | `volume_write_failed` | `write` | An intended volume could not be written; the volumes after it are still attempted, and the exit code is 1 |
+| `interrupted` | `inspect` or `write` | The run was stopped by Ctrl-C or SIGTERM. The volume that was being written was removed, volumes already finished stay, the volumes not written are in the report with `written: false`, and the exit code is 130. In `-batch`, the manga that were left are not started (an invocation-level issue says so) |
 | `combined_write_failed` | `write` | A `-combine` run's single combined file could not be written |
 
 ## Evolution rule

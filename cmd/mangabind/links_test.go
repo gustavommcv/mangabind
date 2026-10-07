@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -155,7 +156,7 @@ func TestALinkIsToldToAPersonToo(t *testing.T) {
 	manga := hostileManga(t, base, filepath.Join(base, "outside"))
 	var stdout, stderr bytes.Buffer
 
-	if _, err := processMangaWithOutput(manga, filepath.Join(base, "out"), "", false, false, false, &stdout, &stderr); err != nil {
+	if _, err := processMangaWithOutput(context.Background(), manga, filepath.Join(base, "out"), "", false, false, false, &stdout, &stderr); err != nil {
 		t.Fatal(err)
 	}
 

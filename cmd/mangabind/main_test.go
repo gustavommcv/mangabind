@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -248,7 +249,7 @@ func TestProcessMangaCombineWritesOneSeriesFile(t *testing.T) {
 	makeChapter(t, input, "Vol.02 Ch.0002 - Beta (en) [Group]", 1)
 
 	output := filepath.Join(root, "out")
-	summary, err := processMangaWithOutput(input, output, "", true, false, true /* combine */, io.Discard, io.Discard)
+	summary, err := processMangaWithOutput(context.Background(), input, output, "", true, false, true /* combine */, io.Discard, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
