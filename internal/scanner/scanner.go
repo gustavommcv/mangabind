@@ -6,6 +6,7 @@ package scanner
 
 import (
 	"archive/zip"
+	"errors"
 	"io/fs"
 	"os"
 	"path"
@@ -238,7 +239,10 @@ func inside(root, path string) bool {
 // it makes).
 func PagesInArchive(cbzPath string) (pages, skipped []string, err error) {
 	zr, err := zip.OpenReader(cbzPath)
-	if err != nil {
+	// A name that is not local ("../a.jpg") makes OpenReader report
+	// ErrInsecurePath when GODEBUG asks for it, and still return the archive.
+	// The names are only used to find entries, never to make files.
+	if err != nil && (!errors.Is(err, zip.ErrInsecurePath) || zr == nil) {
 		return nil, nil, err
 	}
 	defer zr.Close()
