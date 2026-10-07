@@ -23,3 +23,4 @@ you need the "why," not just the "what."
 | [0015](0015-the-command-line-refuses-what-it-does-not-understand.md) | The command line refuses what it does not understand, and keeps help and notices off the result's stream |
 | [0016](0016-a-page-is-an-image.md) | A page is an image, by its name; known junk is left out silently and any other file with one warning per chapter |
 | [0017](0017-volumes-are-written-whole-or-not-at-all.md) | A volume is written under a part name and moved into place only when complete; Ctrl-C stops cleanly with exit code 130 |
+| [0018](0018-an-entry-cannot-expand-to-more-than-a-page-can-be.md) | An archive entry that declares it would expand to more than a page can be is left out with a warning |

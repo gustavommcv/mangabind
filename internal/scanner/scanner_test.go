@@ -93,7 +93,7 @@ func TestPagesInArchiveNotAZip(t *testing.T) {
 	if err := os.WriteFile(path, []byte("this is not a zip file"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := PagesInArchive(path); err == nil {
+	if _, _, _, err := PagesInArchive(path); err == nil {
 		t.Fatal("expected an error reading a corrupt/non-zip .cbz")
 	}
 }
@@ -134,7 +134,7 @@ func TestPagesInArchive(t *testing.T) {
 	}
 	f.Close()
 
-	pages, _, err := PagesInArchive(cbzPath)
+	pages, _, _, err := PagesInArchive(cbzPath)
 	if err != nil {
 		t.Fatal(err)
 	}

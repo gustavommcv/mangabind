@@ -2,6 +2,8 @@ package cbz
 
 import (
 	"archive/zip"
+	"bytes"
+	"compress/flate"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/gustavommcv/mangabind/internal/grouper"
+	"github.com/gustavommcv/mangabind/internal/scanner"
 )
 
 type sourceEntry struct{ name, content string }
@@ -230,5 +233,97 @@ func TestAnArchiveThatGODEBUGCallsInsecureIsStillRead(t *testing.T) {
 
 	if want := []string{"bee", "sea"}; !reflect.DeepEqual(readVolume(t, out), want) {
 		t.Errorf("volume holds %v, want %v", readVolume(t, out), want)
+	}
+}
+
+func TestAnEntryLeftOutForItsSizeDoesNotTakeTheNameOfOneThatWasListed(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source.cbz")
+	f, err := os.Create(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw := zip.NewWriter(f)
+	// The first entry called p1.jpg declares 300 MiB and is not a page; the
+	// second is. The nth page that asks for the name must get the nth entry
+	// that the scanner listed, not the nth in the archive.
+	if _, err := zw.CreateRaw(&zip.FileHeader{Name: "p1.jpg", Method: zip.Deflate, CompressedSize64: 300 << 20, UncompressedSize64: 300 << 20}); err != nil {
+		t.Fatal(err)
+	}
+	w, err := zw.CreateHeader(&zip.FileHeader{Name: "p1.jpg", Method: zip.Store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("the real page")); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	names, _, oversized, err := scanner.PagesInArchive(source)
+	if err != nil || !reflect.DeepEqual(names, []string{"p1.jpg"}) || len(oversized) != 1 {
+		t.Fatalf("PagesInArchive() = %v, oversized %v, err %v, want one page and one left out", names, oversized, err)
+	}
+	out := filepath.Join(dir, "Vol.01.cbz")
+
+	if err := Write(out, archivePages(source, names...)); err != nil {
+		t.Fatalf("Write() = %v, want the listed entry copied", err)
+	}
+
+	if want := []string{"the real page"}; !reflect.DeepEqual(readVolume(t, out), want) {
+		t.Errorf("volume holds %v, want %v", readVolume(t, out), want)
+	}
+}
+
+func TestAnEntryThatUnderstatesItsSizeCannotExpandPastIt(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source.cbz")
+	// 5 MiB of zeros, deflated by hand, under a header that says the entry is
+	// 1000 bytes: small enough that the scanner takes it for a page.
+	var packed bytes.Buffer
+	fw, err := flate.NewWriter(&packed, flate.BestCompression)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fw.Write(make([]byte, 5<<20)); err != nil {
+		t.Fatal(err)
+	}
+	if err := fw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Create(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw := zip.NewWriter(f)
+	w, err := zw.CreateRaw(&zip.FileHeader{Name: "p1.jpg", Method: zip.Deflate, CompressedSize64: uint64(packed.Len()), UncompressedSize64: 1000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write(packed.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	names, _, oversized, err := scanner.PagesInArchive(source)
+	if err != nil || len(names) != 1 || len(oversized) != 0 {
+		t.Fatalf("PagesInArchive() = %v, %v, %v: the header was meant to pass as a page", names, oversized, err)
+	}
+	out := filepath.Join(dir, "Vol.01.cbz")
+
+	err = Write(out, archivePages(source, names...))
+
+	if err == nil {
+		t.Fatal("Write() succeeded: the entry expanded to 5 MiB under a header that says 1000 bytes")
+	}
+	if _, statErr := os.Stat(out); !errors.Is(statErr, os.ErrNotExist) {
+		t.Errorf("a volume was left behind: %v", statErr)
 	}
 }

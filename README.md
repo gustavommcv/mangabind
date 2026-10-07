@@ -156,6 +156,10 @@ with one warning per chapter, and the leftovers of a file manager or downloader 
 `Thumbs.db`, `desktop.ini`, `ComicInfo.xml`, macOS's `__MACOSX/` and `._` files) are left out without
 one. See [the page rule](docs/adr/0016-a-page-is-an-image.md).
 
+An entry of a `.cbz` chapter that declares it would expand to more than a page can be (over 256 MiB,
+or over 1000 times its stored size and over 16 MiB) is left out with a warning, so that an archive
+made to fill a disk cannot. See [the limit](docs/adr/0018-an-entry-cannot-expand-to-more-than-a-page-can-be.md).
+
 A symbolic link is followed only if it points to a file inside the manga's input folder. Other
 links are skipped with a warning. With `--batch`, a link to a manga folder in the library is not
 followed either, and is reported the same way. See

@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 
 	"github.com/gustavommcv/mangabind/internal/grouper"
+	"github.com/gustavommcv/mangabind/internal/scanner"
 )
 
 // Write creates a .cbz at outPath containing pages, in the given order.
@@ -188,9 +189,14 @@ func (s *sourceArchives) use(path string) error {
 	if err != nil && (!errors.Is(err, zip.ErrInsecurePath) || reader == nil) {
 		return err
 	}
+	// Only the entries the scanner listed as pages: when two entries have one
+	// name and one of them was left out (too large to be a page), the nth page
+	// that asks for the name must still get the nth entry that was listed.
 	entries := make(map[string][]*zip.File, len(reader.File))
 	for _, file := range reader.File {
-		entries[file.Name] = append(entries[file.Name], file)
+		if scanner.IsPageEntry(file) {
+			entries[file.Name] = append(entries[file.Name], file)
+		}
 	}
 	s.path, s.reader, s.entries = path, reader, entries
 	return nil
