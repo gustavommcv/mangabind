@@ -5,6 +5,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -15,10 +16,10 @@ import (
 	"time"
 )
 
-// aRunBlockedOnItsSecondPage starts the real program on a chapter whose second
-// page is a named pipe that nothing writes to yet, so the run stops there, with
-// the first page copied, until the test lets it go. It returns when the first
-// page is known to have been copied.
+// blockedRun is the real program, started on a chapter whose second page is a
+// named pipe that nothing writes to yet, so the run waits there with the first
+// page copied until the test lets it go. startBlockedRun starts it and returns
+// once the first page is known to have been copied.
 type blockedRun struct {
 	cmd       *exec.Cmd
 	stdout    *bytes.Buffer
@@ -82,6 +83,40 @@ func startBlockedRun(t *testing.T) *blockedRun {
 	return run
 }
 
+// signalHandled is how long a test waits for the program to have taken a signal
+// it was sent: far longer than the microseconds that takes, so that a loaded
+// machine does not turn the wait into a race.
+const signalHandled = time.Second
+
+// letTheSecondPageGo gives the named pipe its page, when the run is waiting for
+// it. It never blocks on the pipe: if the run was stopped before it got there
+// (it saw the interruption before it started the second page) nobody will ever
+// read it, and opening it for writing in the ordinary way would wait for ever.
+func (r *blockedRun) letTheSecondPageGo(t *testing.T) {
+	t.Helper()
+	deadline := time.After(30 * time.Second)
+	for {
+		pipe, err := os.OpenFile(r.fifo, os.O_WRONLY|syscall.O_NONBLOCK, 0)
+		if err == nil {
+			if _, err := io.WriteString(pipe, "two"); err != nil {
+				t.Fatal(err)
+			}
+			pipe.Close()
+			return
+		}
+		if !errors.Is(err, syscall.ENXIO) { // ENXIO: nobody has the pipe open for reading yet
+			t.Fatal(err)
+		}
+		select {
+		case <-r.stderrEnd: // the run is over
+			return
+		case <-deadline:
+			t.Fatal("the run neither read its second page nor ended")
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+}
+
 // finish waits for the run to end, after its stderr has been read to the end.
 func (r *blockedRun) finish(t *testing.T) *os.ProcessState {
 	t.Helper()
@@ -100,16 +135,10 @@ func TestCtrlCStopsTheRealProgramAndLeavesNothingHalfWritten(t *testing.T) {
 	if err := run.cmd.Process.Signal(os.Interrupt); err != nil {
 		t.Fatal(err)
 	}
-	// Let the page it is blocked on go: the run copies it, sees that it was
-	// asked to stop before the third page, and cleans up.
-	pipe, err := os.OpenFile(run.fifo, os.O_WRONLY, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := io.WriteString(pipe, "two"); err != nil {
-		t.Fatal(err)
-	}
-	pipe.Close()
+	// A signal is handled by another goroutine of the program, a moment after
+	// it is sent. Give it that moment, so that what follows cannot overtake it.
+	time.Sleep(signalHandled)
+	run.letTheSecondPageGo(t)
 
 	state := run.finish(t)
 
@@ -142,7 +171,7 @@ func TestASecondCtrlCEndsTheRealProgramAtOnce(t *testing.T) {
 	}
 	// The first interrupt cancels the run and lets the handler go; give that a
 	// moment, then the second one is not caught.
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(signalHandled)
 	if err := run.cmd.Process.Signal(os.Interrupt); err != nil {
 		t.Fatal(err)
 	}
