@@ -39,3 +39,12 @@ Not covered: a hard link to a file elsewhere is the same file under another name
 The checks run for a link only. A folder without links costs nothing more than before.
 
 Tests make real links, and skip where the system does not allow one (Windows without Developer Mode or an elevated shell); the Linux and macOS runs of CI make them.
+
+## Amendment (2026-10-07): a library's links
+
+The decision said the input folder is "the one given to `-input`, or, with `-batch`, the folder of each manga", and so covered what is inside a manga. It left out the entries of the library folder itself: a link there to a manga folder was skipped without a word, because only real folders were taken for manga and nothing said that a link had been passed over (finding 9 of [the October 2026 audit](../audit-2026-10.md)). Following it would put whatever folder it points to into a volume, which is what this ADR exists to prevent.
+
+- With `-batch`, a link in the library folder that leads to a folder is **not followed and not a manga of the run**, and a link that leads nowhere is reported too. Both are `link_skipped` warnings at the `inspect` stage, with the link's own path: on the terminal as `warning: found a link "Name" that leads to a folder, and the manga folders of a library are not followed through links, skipped`; in the machine report as an invocation-level issue (there is no manga to attach it to).
+- A link to a file in the library folder is as a file is: not a manga, and not worth a word.
+- Someone who keeps a library as links into a download folder puts the folders there, or runs mangabind on each target; the README says so for links in general.
+

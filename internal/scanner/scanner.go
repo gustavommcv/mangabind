@@ -36,10 +36,46 @@ type Link struct {
 }
 
 const (
-	whyOutside  = "leads outside the input folder"
-	whyNotAFile = "does not lead to a file"
-	whyNoInput  = "could not be checked against the input folder"
+	whyOutside     = "leads outside the input folder"
+	whyNotAFile    = "does not lead to a file"
+	whyNoInput     = "could not be checked against the input folder"
+	whyLibraryLink = "leads to a folder, and the manga folders of a library are not followed through links"
+	whyNowhere     = "leads nowhere"
 )
+
+// Library lists the manga folders directly inside a library folder, which is
+// what -batch processes, in the order os.ReadDir gives (by name). Only a real
+// folder is a manga.
+//
+// A symbolic link is not followed here, for the reason ADR 0014 gives for the
+// pages of one manga: a library that someone else made could otherwise put any
+// folder of the reader's disk into a volume. A link that leads to a folder, or
+// leads nowhere, is returned in links so that it can be reported instead of
+// vanishing from the run without a word; a link to a file is as a file is: not
+// a manga, and not worth a word.
+func Library(root string) (manga []string, links []Link, err error) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, e := range entries {
+		if e.Type()&fs.ModeSymlink != 0 {
+			path := filepath.Join(root, e.Name())
+			info, statErr := os.Stat(path)
+			switch {
+			case statErr != nil:
+				links = append(links, Link{Path: path, Why: whyNowhere})
+			case info.IsDir():
+				links = append(links, Link{Path: path, Why: whyLibraryLink})
+			}
+			continue
+		}
+		if e.IsDir() {
+			manga = append(manga, e.Name())
+		}
+	}
+	return manga, links, nil
+}
 
 // Scan lists the immediate contents of root, classifying each entry as a
 // chapter folder, a .cbz chapter archive, or - for anything else other than

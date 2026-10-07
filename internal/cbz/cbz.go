@@ -10,11 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/gustavommcv/mangabind/internal/grouper"
 )
@@ -208,13 +206,7 @@ func (s *sourceArchives) close() {
 // VolumeFileName builds the output filename for a manga volume, e.g.
 // "Chainsaw Man - Vol.01.cbz".
 func VolumeFileName(manga string, volume float64) string {
-	var numPart string
-	if volume == math.Trunc(volume) {
-		numPart = fmt.Sprintf("%02d", int(volume))
-	} else {
-		numPart = strconv.FormatFloat(volume, 'f', -1, 64)
-	}
-	return fmt.Sprintf("%s - Vol.%s.cbz", manga, numPart)
+	return fmt.Sprintf("%s - Vol.%s.cbz", manga, grouper.VolumeLabel(volume))
 }
 
 // SeriesFileName builds the output filename for a whole series combined into

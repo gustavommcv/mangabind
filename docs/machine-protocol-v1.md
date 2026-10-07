@@ -139,12 +139,13 @@ Version 1 codes are:
 | `input_scan_failed` | `inspect` | A manga input could not be read |
 | `unsupported_input_file` | `inspect` | A sibling file is not a supported chapter unit |
 | `unsupported_page_files` | `inspect` | A chapter holds files that are not images, apart from known junk (`.DS_Store`, `Thumbs.db`, `desktop.ini`, `ComicInfo.xml`, `__MACOSX/` and `._` files); they were left out. One issue per chapter: `path` is the chapter, `chapter` and `volume` say which, and `related_paths` lists the files of a folder (for a `.cbz`, `diagnostic` names its entries) |
-| `link_skipped` | `inspect` | A symbolic link was not followed because it does not lead to a file inside the input folder (see [ADR 0014](adr/0014-links-stay-inside-the-input.md)); `path` is the link, and `chapter` (and `volume`, when the chapter has one) is set for a page link |
+| `link_skipped` | `inspect` | A symbolic link was not followed because it does not lead to a file inside the input folder (see [ADR 0014](adr/0014-links-stay-inside-the-input.md)); `path` is the link, and `chapter` (and `volume`, when the chapter has one) is set for a page link With `--batch`, a link to a manga folder in the library is reported too, as an invocation-level issue in the top-level `issues` (`path` is the link, and there is no manga, chapter or volume); it is not followed |
 | `no_chapters_found` | `inspect` | No folder or CBZ chapter units were found |
 | `page_listing_failed` | `inspect` | A unit's pages could not be listed |
 | `empty_chapter` | `inspect` | A recognized unit contains no pages |
 | `unparsed_chapter` | `parse` | No registered parser recognized a unit name |
-| `metadata_load_failed` | `metadata` | The mapping file could not be read or validated |
+| `metadata_load_failed` | `metadata` | The mapping file could not be read or validated: a volume number that is not a number from 0 to 100000, a chapter range that is too large, or more than 100,000 chapters listed |
+| `metadata_duplicate_chapter` | `metadata` | The mapping file lists chapters under more than one volume; the last listing applies. One issue per file: `path` is the file, and the message names the first of them |
 | `metadata_volume_conflict` | `metadata` | Filename and metadata volumes disagree; filename wins |
 | `unassigned_chapter` | `group` | A parsed chapter has no volume assignment |
 | `chapter_gap` | `group` | Whole-number chapters are missing inside a volume |
