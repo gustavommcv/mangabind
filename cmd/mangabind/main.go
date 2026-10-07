@@ -672,6 +672,8 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 		}
 	}
 
+	// Volumes that could not be written, in the per-volume mode: see below.
+	failedVolumes := 0
 	if combine {
 		// One .cbz for the whole manga instead of one per volume - see
 		// docs/adr/0012-combine-series-into-one-volume.md. Each volume still
@@ -752,14 +754,22 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 				}
 			} else {
 				emitWrite("started", index, vol.Number, completedPages)
+				copied := 0
 				var onPage func(int)
 				if progress != nil {
 					onPage = func(completed int) {
+						copied = completed
 						emitWrite("advanced", index, vol.Number, completedPages+completed)
 					}
 				}
 				if err := cbz.WriteWithProgress(outPath, vol.Pages, onPage); err != nil {
+					// Report it and bind the next volume: what can be bound is
+					// bound, and the error returned at the end says that
+					// something was not. The pages that were copied stay in the
+					// progress count, which never goes back.
 					wrapped := fmt.Errorf("writing volume %v: %w", vol.Number, err)
+					failedVolumes++
+					completedPages += copied
 					report.Volumes = append(report.Volumes, volume)
 					value := issue("error", "volume_write_failed", "write", fmt.Sprintf("Couldn't write volume %v.", vol.Number))
 					value.Manga = mangaName
@@ -768,8 +778,10 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 					value.Recoverable = true
 					value.Diagnostic = wrapped.Error()
 					report.addIssue(value)
-					finalizeMangaReport(&report, summary)
-					return summary, report, wrapped
+					if human {
+						printlnTo(stderr, "mangabind:", wrapped)
+					}
+					continue
 				}
 				completedPages += len(vol.Pages)
 				emitWrite("completed", index, vol.Number, completedPages)
@@ -857,6 +869,9 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 	}
 
 	finalizeMangaReport(&report, summary)
+	if failedVolumes > 0 {
+		return summary, report, fmt.Errorf("%d of %d volume(s) could not be written", failedVolumes, len(result.Volumes))
+	}
 	return summary, report, nil
 }
 

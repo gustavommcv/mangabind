@@ -6,6 +6,7 @@ package cbz
 
 import (
 	"archive/zip"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -36,9 +37,12 @@ func WriteWithProgress(outPath string, pages []grouper.Page, onPage func(complet
 	}
 	defer f.Close()
 
+	sources := &sourceArchives{}
+	defer sources.close()
+
 	zw := zip.NewWriter(f)
 	for index, p := range pages {
-		if err := addPage(zw, p); err != nil {
+		if err := addPage(zw, sources, p); err != nil {
 			zw.Close()
 			return fmt.Errorf("adding %s: %w", p.SourcePath, err)
 		}
@@ -49,8 +53,8 @@ func WriteWithProgress(outPath string, pages []grouper.Page, onPage func(complet
 	return zw.Close()
 }
 
-func addPage(zw *zip.Writer, p grouper.Page) error {
-	src, err := openPage(p)
+func addPage(zw *zip.Writer, sources *sourceArchives, p grouper.Page) error {
+	src, err := sources.open(p)
 	if err != nil {
 		return err
 	}
@@ -68,39 +72,78 @@ func addPage(zw *zip.Writer, p grouper.Page) error {
 	return err
 }
 
-// openPage opens a page for reading: a plain file, or - when
-// SourceInArchive is set - an entry inside the .cbz archive at SourcePath.
-func openPage(p grouper.Page) (io.ReadCloser, error) {
+// openArchive opens a source .cbz. It is a variable so that a test can count
+// how often it is called.
+var openArchive = zip.OpenReader
+
+// sourceArchives opens the pages of a volume: a plain file, or - when
+// SourceInArchive is set - an entry inside a source .cbz.
+//
+// A source archive is opened once and read from for as long as pages keep
+// coming from it, which is how they come: a chapter's pages are consecutive.
+// It used to be opened again for every page, which meant reading its whole
+// directory again each time, so the work grew with the square of the number of
+// entries (8,000 entries took two minutes). Only the archive being read is
+// kept open, so a volume of hundreds of .cbz chapters never holds hundreds of
+// files open at once.
+//
+// An entry is found through the *zip.File the archive lists, not through
+// zip.Reader.Open, which follows io/fs rules: it refuses names such as "./a.jpg"
+// or "../a.jpg" that archives made by other tools hold, and with two entries of
+// the same name it always returns the first. The scanner lists every entry, in
+// order, so the nth page asking for a name gets the nth entry of that name.
+type sourceArchives struct {
+	path    string                 // the archive that is open, "" for none
+	reader  *zip.ReadCloser        // that archive
+	entries map[string][]*zip.File // its entries by name, in archive order
+	handed  map[string]int         // entries handed out, by archive and name; kept when the archive is closed
+}
+
+func (s *sourceArchives) open(p grouper.Page) (io.ReadCloser, error) {
 	if p.SourceInArchive == "" {
 		return os.Open(p.SourcePath)
 	}
+	if s.path != p.SourcePath {
+		if err := s.use(p.SourcePath); err != nil {
+			return nil, err
+		}
+	}
 
-	archive, err := zip.OpenReader(p.SourcePath)
-	if err != nil {
-		return nil, err
+	if s.handed == nil {
+		s.handed = map[string]int{}
 	}
-	entry, err := archive.Open(p.SourceInArchive)
-	if err != nil {
-		archive.Close()
-		return nil, err
+	key := p.SourcePath + "\x00" + p.SourceInArchive
+	files := s.entries[p.SourceInArchive]
+	if s.handed[key] >= len(files) {
+		return nil, fmt.Errorf("%s has no entry %q", p.SourcePath, p.SourceInArchive)
 	}
-	return &archiveEntryReader{ReadCloser: entry, archive: archive}, nil
+	file := files[s.handed[key]]
+	s.handed[key]++
+	return file.Open()
 }
 
-// archiveEntryReader closes both the archive entry and its parent zip
-// reader, so a page read from inside a source .cbz doesn't leak the open
-// archive handle.
-type archiveEntryReader struct {
-	io.ReadCloser
-	archive *zip.ReadCloser
+// use closes the archive that is open, if any, and opens the one at path.
+func (s *sourceArchives) use(path string) error {
+	s.close()
+	reader, err := openArchive(path)
+	// An archive with a name that is not local ("../a.jpg") is still readable:
+	// the name is only ever used to find the entry, never to make a file.
+	if err != nil && (!errors.Is(err, zip.ErrInsecurePath) || reader == nil) {
+		return err
+	}
+	entries := make(map[string][]*zip.File, len(reader.File))
+	for _, file := range reader.File {
+		entries[file.Name] = append(entries[file.Name], file)
+	}
+	s.path, s.reader, s.entries = path, reader, entries
+	return nil
 }
 
-func (r *archiveEntryReader) Close() error {
-	err := r.ReadCloser.Close()
-	if archErr := r.archive.Close(); err == nil {
-		err = archErr
+func (s *sourceArchives) close() {
+	if s.reader != nil {
+		s.reader.Close()
 	}
-	return err
+	s.path, s.reader, s.entries = "", nil, nil
 }
 
 // VolumeFileName builds the output filename for a manga volume, e.g.

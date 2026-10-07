@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"archive/zip"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -157,6 +158,48 @@ func TestPagesInAnArchiveAreItsImages(t *testing.T) {
 		t.Errorf("pages = %v, want %v", pages, want)
 	}
 	if want := []string{"dir/credits.html", "notes.txt"}; !reflect.DeepEqual(skipped, want) {
+		t.Errorf("skipped = %v, want %v", skipped, want)
+	}
+}
+
+func TestPagesInAnArchiveThatGODEBUGCallsInsecureAreStillListed(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "Ch.001.cbz")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw := zip.NewWriter(f)
+	for _, name := range []string{"../002.jpg", "001.jpg", "notes.txt"} {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte("x")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GODEBUG", "zipinsecurepath=0")
+	if zr, err := zip.OpenReader(path); !errors.Is(err, zip.ErrInsecurePath) || zr == nil {
+		t.Skipf("this Go does not report ErrInsecurePath here (err = %v)", err)
+	} else {
+		zr.Close()
+	}
+
+	pages, skipped, err := PagesInArchive(path)
+
+	if err != nil {
+		t.Fatalf("PagesInArchive() = %v, want the entries listed despite the name", err)
+	}
+	if want := []string{"../002.jpg", "001.jpg"}; !reflect.DeepEqual(pages, want) {
+		t.Errorf("pages = %v, want %v", pages, want)
+	}
+	if want := []string{"notes.txt"}; !reflect.DeepEqual(skipped, want) {
 		t.Errorf("skipped = %v, want %v", skipped, want)
 	}
 }
