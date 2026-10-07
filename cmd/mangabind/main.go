@@ -353,8 +353,52 @@ func editDistance(a, b string) int {
 // used when -output isn't given. A sibling rather than a subdirectory of
 // input matters: writing inside the scanned input tree would make the next
 // run see the output folder itself as an unrecognized chapter.
+//
+// The sibling is worked out from the folder's real name, not from the text
+// that was typed. A trailing separator ("Manga/"), "." and ".." are all ways
+// to name a folder that say nothing of what it is called: taken as typed,
+// "Manga/" put the output inside Manga, and "." made a hidden folder named
+// ". (mangabind)" holding files named ". - Vol.01.cbz". A path that already
+// ends in a name is only cleaned, so that what is printed stays as the person
+// wrote it; only one that does not is made absolute.
 func defaultOutputDir(input string) string {
-	return filepath.Join(filepath.Dir(input), filepath.Base(input)+" (mangabind)")
+	dir, name := splitFolder(input)
+	return filepath.Join(dir, name+" (mangabind)")
+}
+
+// folderName is what the manga folder is called, which is what its volumes are
+// named after ("<name> - Vol.01.cbz"): the same name defaultOutputDir uses,
+// and never "." or "..".
+func folderName(input string) string {
+	_, name := splitFolder(input)
+	return name
+}
+
+// splitFolder separates the folder input names into where it is and what it is
+// called. See defaultOutputDir for why the typed text is not enough.
+func splitFolder(input string) (dir, name string) {
+	path := filepath.Clean(input)
+	if !namesAFolder(path) {
+		if abs, err := filepath.Abs(path); err == nil {
+			path = abs
+		}
+	}
+	name = filepath.Base(path)
+	if !namesAFolder(name) {
+		// A filesystem root has no name to borrow.
+		name = "manga"
+	}
+	return filepath.Dir(path), name
+}
+
+// namesAFolder reports whether the last element of path is a name, and not ".",
+// ".." or a separator (what Base leaves of a root).
+func namesAFolder(path string) bool {
+	base := filepath.Base(path)
+	if base == "." || base == ".." {
+		return false
+	}
+	return len(base) != 1 || !os.IsPathSeparator(base[0])
 }
 
 // runBatch treats libraryInput as a folder of manga folders, processing each
@@ -440,7 +484,7 @@ func processMangaWithOutput(input, output, metadataFile string, quiet, dryRun, c
 
 func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, combine, human bool, stdout, stderr io.Writer, progress progressSink) (mangaSummary, mangaReport, error) {
 	var summary mangaSummary
-	mangaName := filepath.Base(filepath.Clean(input))
+	mangaName := folderName(input)
 	report := newMangaReport(mangaName, absolutePath(input))
 	if progress != nil {
 		progress(machineProgress{Stage: "inspect", State: "started", Manga: mangaName})
