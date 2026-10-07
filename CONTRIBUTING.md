@@ -6,15 +6,27 @@ Requires Go 1.26+ (the minimum is the `go` line of `go.mod`, and CI follows it).
 
 ```bash
 go build ./...
-go test ./...
+go test -race ./...   # -race needs a C compiler; plain `go test ./...` works without it
 go vet ./...
-gofmt -l .   # should print nothing; run `gofmt -w .` to fix
+gofmt -l .            # should print nothing; run `gofmt -w .` to fix
+go mod tidy -diff     # should print nothing: go.mod and go.sum are as `go mod tidy` leaves them
 ```
 
-CI runs the same checks on Windows, macOS, and Linux for every PR, plus
-[golangci-lint](https://golangci-lint.run/) (config in `.golangci.yml`) and a `goreleaser --snapshot`
+CI runs the same checks on Windows, macOS, and Linux for every PR (the race detector everywhere but
+Windows), plus [golangci-lint](https://golangci-lint.run/) (config in `.golangci.yml`), `govulncheck`
+(also once a week, since an advisory can land without a change here) and a `goreleaser --snapshot`
 build to catch a broken release config early. Run `golangci-lint run ./...` locally if you have it
 installed.
+
+Everything the workflows use is pinned: each action to a commit (the tag it stands for is in the
+comment beside it) and each tool to a version. Dependabot proposes the updates, one pull request a
+week for the actions.
+
+## Releasing
+
+A release is a `vX.Y.Z` tag on a commit that is on `main`. The Release workflow runs the same checks
+as CI and `govulncheck` on that commit, refuses a tag whose commit is not on `main`, and only then
+builds and publishes the archives with goreleaser.
 
 ## Testing against real manga
 
