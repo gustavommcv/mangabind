@@ -33,6 +33,139 @@ func TestDefaultOutputDir(t *testing.T) {
 	}
 }
 
+func TestDefaultOutputDirIsTheSiblingWhateverWayTheFolderIsNamed(t *testing.T) {
+	sep := string(filepath.Separator)
+	root := t.TempDir()
+	manga := filepath.Join(root, "Manga")
+	volume := filepath.Join(manga, "Vol")
+	other := filepath.Join(root, "Other")
+	for _, dir := range []string{volume, other} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	t.Run("a name that is typed with decoration is cleaned, and stays relative", func(t *testing.T) {
+		t.Chdir(root)
+		cases := []struct{ input, want string }{
+			{"Manga", "Manga (mangabind)"},
+			{"Manga" + sep, "Manga (mangabind)"},
+			{"." + sep + "Manga", "Manga (mangabind)"},
+			{filepath.Join("Manga", "."), "Manga (mangabind)"},
+			{filepath.Join("Manga", "Vol", ".."), "Manga (mangabind)"},
+			{filepath.Join("Manga", "Vol"), filepath.Join("Manga", "Vol (mangabind)")},
+			{"Manga" + sep + sep, "Manga (mangabind)"},
+		}
+		for _, c := range cases {
+			if got := defaultOutputDir(c.input); got != c.want {
+				t.Errorf("defaultOutputDir(%q) = %q, want %q", c.input, got, c.want)
+			}
+		}
+	})
+
+	t.Run("a path above the working directory keeps its way up", func(t *testing.T) {
+		t.Chdir(other)
+		got := defaultOutputDir(".." + sep + "Manga")
+		if want := filepath.Join("..", "Manga (mangabind)"); got != want {
+			t.Errorf("defaultOutputDir = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("a dot is the working directory, whose name is the folder's", func(t *testing.T) {
+		t.Chdir(manga)
+		wd, err := os.Getwd()
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := filepath.Join(filepath.Dir(wd), "Manga (mangabind)")
+		if got := defaultOutputDir("."); got != want {
+			t.Errorf("defaultOutputDir(.) = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("two dots are the parent of the working directory", func(t *testing.T) {
+		t.Chdir(volume)
+		wd, err := os.Getwd()
+		if err != nil {
+			t.Fatal(err)
+		}
+		parent := filepath.Dir(wd)
+		want := filepath.Join(filepath.Dir(parent), filepath.Base(parent)+" (mangabind)")
+		if got := defaultOutputDir(".."); got != want {
+			t.Errorf("defaultOutputDir(..) = %q, want %q", got, want)
+		}
+		if filepath.Base(want) != "Manga (mangabind)" {
+			t.Errorf("the folder is not named after the parent: %q", want)
+		}
+	})
+
+	t.Run("a filesystem root has no name, so it is given one", func(t *testing.T) {
+		top := root
+		for {
+			parent := filepath.Dir(top)
+			if parent == top {
+				break
+			}
+			top = parent
+		}
+		if got, want := defaultOutputDir(top), filepath.Join(top, "manga (mangabind)"); got != want {
+			t.Errorf("defaultOutputDir(%q) = %q, want %q", top, got, want)
+		}
+	})
+}
+
+func TestFolderNameIsNeverADot(t *testing.T) {
+	manga := writeTestManga(t)
+	t.Chdir(manga)
+
+	for _, input := range []string{".", "." + string(filepath.Separator), filepath.Join(manga, "Vol.01 Ch.001", "..")} {
+		if got := folderName(input); got != "Manga" {
+			t.Errorf("folderName(%q) = %q, want Manga", input, got)
+		}
+	}
+
+	report, _, code := runMachineForTest(t, "-input", ".", "-dry-run", "-json")
+	if code != 0 || len(report.Manga) != 1 || report.Manga[0].Name != "Manga" {
+		t.Fatalf("code = %d, manga = %+v, want one manga named Manga", code, report.Manga)
+	}
+	if len(report.Manga[0].Volumes) != 1 || filepath.Base(report.Manga[0].Volumes[0].OutputPath) != "Manga - Vol.01.cbz" {
+		t.Errorf("volumes = %+v, want Manga - Vol.01.cbz", report.Manga[0].Volumes)
+	}
+}
+
+func TestARunWithADotOrATrailingSeparatorWritesBesideTheFolder(t *testing.T) {
+	for _, spelling := range []string{".", "trailing separator"} {
+		t.Run(spelling, func(t *testing.T) {
+			manga := writeTestManga(t)
+			t.Chdir(manga)
+			input := "."
+			if spelling != "." {
+				t.Chdir(filepath.Dir(manga))
+				input = filepath.Base(manga) + string(filepath.Separator)
+			}
+			wantOutput := filepath.Join(filepath.Dir(manga), "Manga (mangabind)")
+
+			code, stdout, stderr := runText("-input", input, "-quiet")
+
+			if code != 0 {
+				t.Fatalf("exit code = %d\nstderr: %s", code, stderr)
+			}
+			if _, err := os.Stat(filepath.Join(wantOutput, "Manga - Vol.01.cbz")); err != nil {
+				t.Errorf("the volume is not in the sibling folder: %v\nstdout: %s", err, stdout)
+			}
+			entries, err := os.ReadDir(manga)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, entry := range entries {
+				if entry.Name() != "Vol.01 Ch.001" {
+					t.Errorf("%q was created inside the input folder", entry.Name())
+				}
+			}
+		})
+	}
+}
+
 // makeChapter creates a chapter folder with n placeholder pages under root.
 func makeChapter(t *testing.T, root, name string, n int) {
 	t.Helper()

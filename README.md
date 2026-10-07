@@ -93,7 +93,9 @@ mangabind --input /path/to/downloaded/manga [--output /path/to/output]
 
 `--output` is optional. If you don't pass it, Mangabind writes to a sibling folder next to
 `--input`, named `<input folder> (mangabind)` - never inside `--input` itself, since that would
-make the next run see the output folder as a bogus chapter.
+make the next run see the output folder as a bogus chapter. The name is the folder's real one,
+however you wrote it: `Manga`, `Manga/`, `./Manga`, or `.` from inside it (and `..` from a folder
+inside it) all give `Manga (mangabind)` next to `Manga`, and volumes named `Manga - Vol.01.cbz`.
 
 Got a whole library instead of just one manga - a folder full of manga folders, each with their
 own chapters? Add `--batch` and point `--input` at the library folder; every immediate subfolder
