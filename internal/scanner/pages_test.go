@@ -149,7 +149,7 @@ func TestPagesInAnArchiveAreItsImages(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pages, skipped, err := PagesInArchive(path)
+	pages, skipped, _, err := PagesInArchive(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestPagesInAnArchiveThatGODEBUGCallsInsecureAreStillListed(t *testing.T) {
 		zr.Close()
 	}
 
-	pages, skipped, err := PagesInArchive(path)
+	pages, skipped, _, err := PagesInArchive(path)
 
 	if err != nil {
 		t.Fatalf("PagesInArchive() = %v, want the entries listed despite the name", err)

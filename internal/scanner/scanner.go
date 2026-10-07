@@ -268,18 +268,63 @@ func inside(root, path string) bool {
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }
 
+// Oversized is an image entry of an archive that was left out for what it
+// declares it would expand to: see tooLarge.
+type Oversized struct {
+	Name       string
+	Size       uint64 // uncompressed
+	Compressed uint64
+}
+
+const (
+	// maxEntrySize is the most an archive entry may expand to. A page of a
+	// comic is a few megabytes, and a scan at print resolution a few tens of
+	// them; nothing is a quarter of a gigabyte.
+	maxEntrySize = 256 << 20
+
+	// maxRatio is the most an entry may expand from what it is stored as, once
+	// it is bigger than ratioFloor. Real images do not compress a thousand to
+	// one (the best a deflate stream can do is a little over that, which is what
+	// an archive made to fill a disk uses); a small entry that does, a blank
+	// bitmap, is below the floor and harmless.
+	maxRatio   = 1000
+	ratioFloor = 16 << 20
+)
+
+// tooLarge says whether an entry is bigger than a page can be, going by the
+// sizes its own header declares. mangabind copies pages without looking at
+// them, and a volume is stored, not compressed, so an entry that expands to
+// gigabytes from a few hundred kilobytes would be written out in full (a 400 KB
+// archive became a 419 MB volume). The declared size is the real one as far as
+// it matters: archive/zip refuses to read more from an entry than it declares.
+func tooLarge(f *zip.File) bool {
+	size, packed := f.UncompressedSize64, f.CompressedSize64
+	if size > maxEntrySize {
+		return true
+	}
+	return size > ratioFloor && size/max(packed, 1) > maxRatio
+}
+
+// IsPageEntry reports whether PagesInArchive lists f as a page: an image by its
+// name and not too large. The writer asks the same question, so that when an
+// archive has two entries of one name it reads the one that was listed.
+func IsPageEntry(f *zip.File) bool {
+	return !f.FileInfo().IsDir() && classifyPage(f.Name) == pageImage && !tooLarge(f)
+}
+
 // PagesInArchive lists the page entries inside a .cbz chapter archive, in
 // natural order. Directory entries within the archive are ignored. As in
 // Pages, only images are pages: the other entries are named in skipped, apart
 // from the same junk (macOS adds a whole __MACOSX folder of it to the archives
-// it makes).
-func PagesInArchive(cbzPath string) (pages, skipped []string, err error) {
+// it makes). An image entry that declares it would expand to more than a page
+// can be is neither: it is returned in oversized, and not copied.
+func PagesInArchive(cbzPath string) (pages, skipped []string, oversized []Oversized, err error) {
 	zr, err := zip.OpenReader(cbzPath)
 	// A name that is not local ("../a.jpg") makes OpenReader report
 	// ErrInsecurePath when GODEBUG asks for it, and still return the archive.
 	// The names are only used to find entries, never to make files.
 	if err != nil && (!errors.Is(err, zip.ErrInsecurePath) || zr == nil) {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	defer zr.Close()
 
@@ -289,6 +334,10 @@ func PagesInArchive(cbzPath string) (pages, skipped []string, err error) {
 		}
 		switch classifyPage(f.Name) {
 		case pageImage:
+			if tooLarge(f) {
+				oversized = append(oversized, Oversized{Name: f.Name, Size: f.UncompressedSize64, Compressed: f.CompressedSize64})
+				continue
+			}
 			pages = append(pages, f.Name)
 		case pageOther:
 			skipped = append(skipped, f.Name)
@@ -297,5 +346,6 @@ func PagesInArchive(cbzPath string) (pages, skipped []string, err error) {
 
 	naturalsort.Strings(pages)
 	naturalsort.Strings(skipped)
-	return pages, skipped, nil
+	sort.Slice(oversized, func(i, j int) bool { return naturalsort.Less(oversized[i].Name, oversized[j].Name) })
+	return pages, skipped, oversized, nil
 }

@@ -699,8 +699,9 @@ func processMangaDetailed(ctx context.Context, input, output, metadataFile strin
 		unit.EffectiveVolume = copyFloat(parsed.Volume)
 
 		var pages, notPages []string
+		var tooLarge []scanner.Oversized
 		if e.IsArchive {
-			pages, notPages, err = scanner.PagesInArchive(e.Path)
+			pages, notPages, tooLarge, err = scanner.PagesInArchive(e.Path)
 		} else {
 			var pageLinks []scanner.Link
 			pages, notPages, pageLinks, err = scanner.Pages(input, e.Path)
@@ -721,6 +722,7 @@ func processMangaDetailed(ctx context.Context, input, output, metadataFile strin
 		}
 		unit.PageCount = len(pages)
 		reportSkippedPages(&report, mangaName, e, &parsed, notPages, human, stderr)
+		reportOversizedPages(&report, mangaName, e, &parsed, tooLarge, human, stderr)
 		if len(pages) == 0 {
 			unit.Disposition = "empty"
 			report.Units = append(report.Units, unit)
@@ -914,7 +916,25 @@ func processMangaDetailed(ctx context.Context, input, output, metadataFile strin
 		report.addIssue(value)
 	}
 
-	for _, line := range summarizeNames("could not parse chapter name, skipped", result.Unparsed, "") {
+	// result.Unparsed holds two kinds of chapter: the ones no parser read, and
+	// the ones that were read and held no pages (an empty folder, one with only
+	// junk, a .cbz whose only entries were too large). Saying "could not parse"
+	// of the second is wrong, and since pages are now images only it is no
+	// longer a rare case.
+	var notParsed, noPages []string
+	for _, name := range result.Unparsed {
+		if unit := findUnit(report.Units, name); unit != nil && unit.Parser.Matched {
+			noPages = append(noPages, name)
+		} else {
+			notParsed = append(notParsed, name)
+		}
+	}
+	for _, line := range summarizeNames("could not parse chapter name, skipped", notParsed, "") {
+		if human {
+			printlnTo(stderr, "warning:", line)
+		}
+	}
+	for _, line := range summarizeNames("chapter has no pages, skipped", noPages, "") {
 		if human {
 			printlnTo(stderr, "warning:", line)
 		}
@@ -1154,6 +1174,65 @@ func reportSkippedPages(report *mangaReport, mangaName string, chapter scanner.C
 		}
 	}
 	report.addIssue(value)
+}
+
+// reportOversizedPages tells of the entries of one .cbz chapter that were left
+// out because they declare they would expand to more than a page can be (see
+// scanner.tooLarge): one warning for the chapter, naming a few and giving their
+// sizes. The sizes are what makes the warning believable, so they are in the
+// message as well as in the diagnostic.
+func reportOversizedPages(report *mangaReport, mangaName string, chapter scanner.ChapterEntry, parsed *parser.ParsedChapter, oversized []scanner.Oversized, human bool, stderr io.Writer) {
+	if len(oversized) == 0 {
+		return
+	}
+	message := oversizedPagesMessage(chapter.Name, oversized)
+	if human {
+		printlnTo(stderr, "warning:", message)
+	}
+	value := issue("warning", "page_entries_too_large", "inspect", message)
+	value.Manga = mangaName
+	value.Volume = copyFloat(parsed.Volume)
+	value.Chapter = copyFloat(&parsed.Chapter)
+	value.Special = parsed.Special
+	value.Path = absolutePath(chapter.Path)
+	details := make([]string, len(oversized))
+	for i, entry := range oversized {
+		details[i] = fmt.Sprintf("%s (%d bytes from %d)", entry.Name, entry.Size, entry.Compressed)
+	}
+	value.Diagnostic = "entries: " + strings.Join(details, ", ")
+	report.addIssue(value)
+}
+
+func oversizedPagesMessage(chapter string, oversized []scanner.Oversized) string {
+	named := make([]string, 0, maxNamedSkippedPages)
+	for _, entry := range oversized[:min(len(oversized), maxNamedSkippedPages)] {
+		named = append(named, fmt.Sprintf("%q (%s, from %s)", entry.Name, formatSize(entry.Size), formatSize(entry.Compressed)))
+	}
+	list := strings.Join(named, ", ")
+	if more := len(oversized) - len(named); more > 0 {
+		list += fmt.Sprintf(" and %d more", more)
+	}
+	if len(oversized) == 1 {
+		return fmt.Sprintf("chapter %q: skipped 1 entry that expands to far more than a page can be: %s", chapter, list)
+	}
+	return fmt.Sprintf("chapter %q: skipped %d entries that expand to far more than a page can be: %s", chapter, len(oversized), list)
+}
+
+// formatSize writes a number of bytes with the unit a person reads it in.
+func formatSize(bytes uint64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	value, suffix := float64(bytes), "B"
+	for _, next := range []string{"KiB", "MiB", "GiB", "TiB", "PiB", "EiB"} {
+		if value < unit {
+			break
+		}
+		value /= unit
+		suffix = next
+	}
+	return fmt.Sprintf("%.1f %s", value, suffix)
 }
 
 // maxNamedSkippedPages is how many skipped files a message names before it says
