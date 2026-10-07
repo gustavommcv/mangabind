@@ -4,7 +4,7 @@ Date: 2026-09-14
 
 ## Status
 
-Accepted; supersedes ADR 0009.
+Accepted; supersedes one conclusion of ADR 0009 (that structured output was not wanted). Amended 2026-10-07 (see the end).
 
 ## Context
 
@@ -54,3 +54,8 @@ tests. Human users pay no compatibility cost unless they explicitly opt into mac
 
 Maintaining JSON is now justified work. Any future reversal or breaking protocol change requires a
 new ADR rather than silently changing version 1.
+
+## Amendment (2026-10-07): exit codes and arguments
+
+The exit codes are 0, 1 and 2 as decided here, and **130** for a run that was interrupted by Ctrl-C or `SIGTERM` ([ADR 0017](0017-volumes-are-written-whole-or-not-at-all.md)), which also reports an `interrupted` issue. An argument that is left over after the flags is now `invalid_arguments` too, and a command line that cannot be used gets its report whenever machine output can be seen anywhere on it, in any spelling of the flag, with nothing on stderr ([ADR 0015](0015-the-command-line-refuses-what-it-does-not-understand.md)). `docs/machine-protocol-v1.md` has the table of exit codes.
+

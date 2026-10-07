@@ -311,6 +311,16 @@ Flags:
 	fs.SetOutput(w)
 	fs.PrintDefaults()
 	fs.SetOutput(io.Discard)
+	printTo(w, `
+Output: what was or would be written goes to stdout; warnings, notices and
+progress go to stderr. With -json, stdout is one JSON report and nothing else.
+
+Exit codes:
+  0    done (a folder with nothing to bind is done, with a warning)
+  1    something could not be done - see the messages, or the report's issues
+  2    the command line could not be used
+  130  interrupted with Ctrl-C (or SIGTERM); the unfinished file was removed
+`)
 	printTo(w, "\nMore info: https://github.com/gustavommcv/mangabind\n")
 }
 

@@ -42,12 +42,12 @@ They install an archive only if its SHA-256 matches the release's `checksums.txt
 stop and install nothing. To install a given version, or somewhere else:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.sh | sh -s -- v0.7.0
+curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.sh | sh -s -- v0.6.1
 curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.sh | MANGABIND_INSTALL_DIR=/opt/bin sh
 ```
 
 ```powershell
-$env:MANGABIND_VERSION = "v0.7.0"; irm https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.ps1 | iex
+$env:MANGABIND_VERSION = "v0.6.1"; irm https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.ps1 | iex
 ```
 
 `MANGABIND_VERSION`, `MANGABIND_INSTALL_DIR` and, for a mirror, `MANGABIND_BASE_URL` work in both;
@@ -94,21 +94,33 @@ mangabind --input "Manga/Example Series" --dry-run
 
 Use `--input` for the path and quote paths that contain spaces. Unexpected positional arguments
 and unknown flags are rejected with exit code 2, so a trailing `--dry-run` cannot be silently
-ignored. A mistyped flag may include a suggestion in the error message.
+ignored. A mistyped flag may include a suggestion in the error message. Flags can be written with
+one dash or two: `-input` and `--input` are the same.
 
-Help goes to stdout. Errors, warnings, and setup notices such as the selected output folder go
-to stderr, keeping them separate from results on stdout.
+### Output and exit codes
+
+What was or would be written (`wrote ...`, `would write ...`, the batch headings and tally) goes to
+stdout, and so does the help. Warnings, errors, notices such as the output folder that was chosen,
+and progress go to stderr, so `mangabind ... | tee list.txt` captures only the results. With
+`--json`, stdout is one JSON report and nothing else.
+
+| Exit code | Meaning |
+|---|---|
+| 0 | Done. A folder with nothing to bind is done too, with a warning, and so is a run with warnings. |
+| 1 | Something could not be done: a volume that could not be written, a metadata file that could not be used, a folder that could not be read. The messages, or the report's issues, say which. |
+| 2 | The command line could not be used: an unknown flag, a stray argument, no `--input`. |
+| 130 | Interrupted with Ctrl-C (or `SIGTERM`). |
 
 A volume is written under a temporary name (`.<volume>.<random>.part`) in the output folder and
 moved into place only when it is complete, so a run that fails or is interrupted never leaves half a
 volume, and never damages one that was there. Press Ctrl-C once to stop: the unfinished file is
-removed and the exit code is 130; a second Ctrl-C ends the program at once. See
+removed; a second Ctrl-C ends the program at once. See
 [the decision](docs/adr/0017-volumes-are-written-whole-or-not-at-all.md).
 
 ### Process a library
 
 With `--batch`, each immediate subfolder is treated as a separate manga. A failure in one manga
-does not stop the others.
+does not stop the others (Ctrl-C does).
 
 ```sh
 mangabind --input "Manga" --batch

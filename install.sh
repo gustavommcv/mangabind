@@ -2,10 +2,10 @@
 # Downloads, checks and installs a mangabind release for macOS and Linux.
 #
 #   curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.sh | sh
-#   curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.sh | sh -s -- v0.7.0
+#   curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.sh | sh -s -- v0.6.1
 #
 # With no version it installs the latest release. Settings, all optional:
-#   MANGABIND_VERSION      a release to install instead of the latest, as v0.7.0 (or 0.7.0)
+#   MANGABIND_VERSION      a release to install instead of the latest, as v0.6.1 (or 0.6.1)
 #   MANGABIND_INSTALL_DIR  where to put it (default: ~/.local/bin)
 #   MANGABIND_BASE_URL     a folder or URL holding the release files, for a mirror or a test
 #
