@@ -618,12 +618,12 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 		}
 		unit.EffectiveVolume = copyFloat(parsed.Volume)
 
-		var pages []string
+		var pages, notPages []string
 		if e.IsArchive {
-			pages, err = scanner.PagesInArchive(e.Path)
+			pages, notPages, err = scanner.PagesInArchive(e.Path)
 		} else {
 			var pageLinks []scanner.Link
-			pages, pageLinks, err = scanner.Pages(input, e.Path)
+			pages, notPages, pageLinks, err = scanner.Pages(input, e.Path)
 			reportLinks(&report, mangaName, pageLinks, &parsed, human, stderr)
 		}
 		if err != nil {
@@ -640,6 +640,7 @@ func processMangaDetailed(input, output, metadataFile string, quiet, dryRun, com
 			return summary, report, wrapped
 		}
 		unit.PageCount = len(pages)
+		reportSkippedPages(&report, mangaName, e, &parsed, notPages, human, stderr)
 		if len(pages) == 0 {
 			unit.Disposition = "empty"
 			report.Units = append(report.Units, unit)
@@ -980,6 +981,55 @@ func reportLinks(report *mangaReport, mangaName string, links []scanner.Link, ch
 		}
 		report.addIssue(value)
 	}
+}
+
+// reportSkippedPages tells of the files of one chapter that were left out
+// because they are not images: one warning for the chapter, naming a few of
+// them, since a downloader that adds a credits page to every chapter would
+// otherwise make a hundred lines of the same complaint. For a folder the issue
+// lists every file in related_paths; for a .cbz chapter, where there is no path
+// to give, the entries are in the diagnostic.
+func reportSkippedPages(report *mangaReport, mangaName string, chapter scanner.ChapterEntry, parsed *parser.ParsedChapter, skipped []string, human bool, stderr io.Writer) {
+	if len(skipped) == 0 {
+		return
+	}
+	message := skippedPagesMessage(chapter.Name, skipped)
+	if human {
+		printlnTo(stderr, "warning:", message)
+	}
+	value := issue("warning", "unsupported_page_files", "inspect", message)
+	value.Manga = mangaName
+	value.Volume = copyFloat(parsed.Volume)
+	value.Chapter = copyFloat(&parsed.Chapter)
+	value.Special = parsed.Special
+	value.Path = absolutePath(chapter.Path)
+	if chapter.IsArchive {
+		value.Diagnostic = "entries: " + strings.Join(skipped, ", ")
+	} else {
+		for _, name := range skipped {
+			value.RelatedPaths = append(value.RelatedPaths, absolutePath(filepath.Join(chapter.Path, name)))
+		}
+	}
+	report.addIssue(value)
+}
+
+// maxNamedSkippedPages is how many skipped files a message names before it says
+// how many more there are.
+const maxNamedSkippedPages = 3
+
+func skippedPagesMessage(chapter string, skipped []string) string {
+	named := make([]string, 0, maxNamedSkippedPages)
+	for _, name := range skipped[:min(len(skipped), maxNamedSkippedPages)] {
+		named = append(named, fmt.Sprintf("%q", name))
+	}
+	list := strings.Join(named, ", ")
+	if more := len(skipped) - len(named); more > 0 {
+		list += fmt.Sprintf(" and %d more", more)
+	}
+	if len(skipped) == 1 {
+		return fmt.Sprintf("chapter %q: skipped 1 file that is not an image: %s", chapter, list)
+	}
+	return fmt.Sprintf("chapter %q: skipped %d files that are not images: %s", chapter, len(skipped), list)
 }
 
 // unsupportedFileMessage explains why a file found alongside chapter

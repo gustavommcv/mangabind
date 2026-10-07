@@ -62,7 +62,7 @@ func TestScanMixedFormats(t *testing.T) {
 }
 
 func TestPages(t *testing.T) {
-	pages, _, err := Pages("../../testdata/sample_manga", "../../testdata/sample_manga/Chapter 3")
+	pages, _, _, err := Pages("../../testdata/sample_manga", "../../testdata/sample_manga/Chapter 3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestScanNonexistentDir(t *testing.T) {
 }
 
 func TestPagesNonexistentDir(t *testing.T) {
-	_, _, err := Pages(t.TempDir(), filepath.Join(t.TempDir(), "does-not-exist"))
+	_, _, _, err := Pages(t.TempDir(), filepath.Join(t.TempDir(), "does-not-exist"))
 	if err == nil {
 		t.Fatal("expected an error listing pages in a nonexistent directory")
 	}
@@ -93,7 +93,7 @@ func TestPagesInArchiveNotAZip(t *testing.T) {
 	if err := os.WriteFile(path, []byte("this is not a zip file"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := PagesInArchive(path); err == nil {
+	if _, _, err := PagesInArchive(path); err == nil {
 		t.Fatal("expected an error reading a corrupt/non-zip .cbz")
 	}
 }
@@ -134,7 +134,7 @@ func TestPagesInArchive(t *testing.T) {
 	}
 	f.Close()
 
-	pages, err := PagesInArchive(cbzPath)
+	pages, _, err := PagesInArchive(cbzPath)
 	if err != nil {
 		t.Fatal(err)
 	}

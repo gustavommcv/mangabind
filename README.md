@@ -140,6 +140,12 @@ is still required. See [the metadata decision](docs/adr/0010-local-metadata-file
 Mangabind copies pages into new archives. It does not resize, crop, recompress, or choose a cover;
 the first page follows chapter and page ordering. Keep generated archives outside the input folder.
 
+A page is an image file: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.bmp`, `.avif`, `.jxl`, `.tif` or
+`.tiff`, by its name. Other files inside a chapter (a `notes.txt`, a `credits.html`) are left out
+with one warning per chapter, and the leftovers of a file manager or downloader (`.DS_Store`,
+`Thumbs.db`, `desktop.ini`, `ComicInfo.xml`, macOS's `__MACOSX/` and `._` files) are left out without
+one. See [the page rule](docs/adr/0016-a-page-is-an-image.md).
+
 A symbolic link is followed only if it points to a file inside the manga's input folder. Other
 links are skipped with a warning. See [the link policy](docs/adr/0014-links-stay-inside-the-input.md).
 

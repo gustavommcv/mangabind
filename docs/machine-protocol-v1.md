@@ -93,7 +93,9 @@ Every discovered chapter folder or chapter CBZ has one unit record:
 - `metadata_assignment.status`: `"not_applicable"`, `"not_requested"`, `"not_found"`, `"applied"`,
   `"confirmed"`, or `"ignored_conflict"`; `metadata_volume` is present when metadata matched
 - `effective_volume`: the assignment used for grouping, when one exists
-- `page_count`
+- `page_count`: the images in the unit. A page is an image by its name (`.jpg`, `.jpeg`, `.png`,
+  `.gif`, `.webp`, `.bmp`, `.avif`, `.jxl`, `.tif`, `.tiff`); see
+  [ADR 0016](adr/0016-a-page-is-an-image.md)
 - `disposition`: `"included"`, `"unassigned"`, `"unparsed"`, `"empty"`, `"conflict"`, or `"failed"`
 
 The parser's original `volume` is never rewritten when metadata fills a missing assignment;
@@ -136,6 +138,7 @@ Version 1 codes are:
 | `library_scan_failed` | `inspect` | The batch root could not be read |
 | `input_scan_failed` | `inspect` | A manga input could not be read |
 | `unsupported_input_file` | `inspect` | A sibling file is not a supported chapter unit |
+| `unsupported_page_files` | `inspect` | A chapter holds files that are not images, apart from known junk (`.DS_Store`, `Thumbs.db`, `desktop.ini`, `ComicInfo.xml`, `__MACOSX/` and `._` files); they were left out. One issue per chapter: `path` is the chapter, `chapter` and `volume` say which, and `related_paths` lists the files of a folder (for a `.cbz`, `diagnostic` names its entries) |
 | `link_skipped` | `inspect` | A symbolic link was not followed because it does not lead to a file inside the input folder (see [ADR 0014](adr/0014-links-stay-inside-the-input.md)); `path` is the link, and `chapter` (and `volume`, when the chapter has one) is set for a page link |
 | `no_chapters_found` | `inspect` | No folder or CBZ chapter units were found |
 | `page_listing_failed` | `inspect` | A unit's pages could not be listed |
