@@ -1,0 +1,87 @@
+name: Installers
+
+# The install scripts are what most people run first, and they fetch a program
+# and put it on the PATH, so they are tested like code: against a release made
+# on the spot (no network: a real program, its archive and checksums.txt), and,
+# every week and when they change, against the real latest release.
+on:
+  pull_request:
+    paths:
+      - install.sh
+      - install.ps1
+      - scripts/test-installers.sh
+      - scripts/test-installers.ps1
+      - .github/workflows/installers.yml
+  push:
+    branches: [main]
+    paths:
+      - install.sh
+      - install.ps1
+      - scripts/test-installers.sh
+      - scripts/test-installers.ps1
+      - .github/workflows/installers.yml
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shell:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: shellcheck
+        if: runner.os == 'Linux'
+        run: shellcheck install.sh scripts/test-installers.sh
+      - name: install.sh against a release made on the spot
+        run: sh scripts/test-installers.sh
+
+  powershell:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      # Both of the PowerShells a Windows machine can have: the one every new
+      # machine has, and the current one.
+      - name: install.ps1 against a release made on the spot (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./scripts/test-installers.ps1
+      - name: install.ps1 against a release made on the spot (PowerShell 7)
+        shell: pwsh
+        run: ./scripts/test-installers.ps1
+
+  latest:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: The installer against the real latest release (macOS and Linux)
+        if: runner.os != 'Windows'
+        run: |
+          MANGABIND_INSTALL_DIR="$RUNNER_TEMP/mangabind" sh install.sh
+          "$RUNNER_TEMP/mangabind/mangabind" --version
+      - name: The installer against the real latest release (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:MANGABIND_INSTALL_DIR = Join-Path $env:RUNNER_TEMP "mangabind"
+          $env:MANGABIND_NO_MODIFY_PATH = "1"
+          ./install.ps1
+          & (Join-Path $env:MANGABIND_INSTALL_DIR "mangabind.exe") --version

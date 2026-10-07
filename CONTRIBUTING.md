@@ -37,6 +37,14 @@ A `vX.Y.Z` tag triggers [the release workflow](.github/workflows/release.yml). I
 tagged commit is on `main` and runs CI and vulnerability checks before GoReleaser builds and
 publishes the archives. Obtain maintainer approval before creating a release tag.
 
+## Installers
+
+`install.sh` and `install.ps1` are tested like code, with no network: `sh scripts/test-installers.sh`
+and `pwsh -File scripts/test-installers.ps1` build a real mangabind, pack it as a release does, and
+run the installer against it, including a damaged archive that must be refused. The
+[Installers workflow](.github/workflows/installers.yml) runs both when either script changes, and
+once a week runs the installers against the real latest release.
+
 ## Tests and fixtures
 
 Add regression tests for changed behavior, including errors that callers need to handle.

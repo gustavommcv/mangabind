@@ -38,6 +38,21 @@ The scripts install the latest release to `~/.local/bin` on macOS/Linux or
 `%LOCALAPPDATA%\Programs\mangabind` on Windows. On macOS/Linux, follow the printed instructions
 if the folder is not on your `PATH`. On Windows, restart your terminal after installation.
 
+They install an archive only if its SHA-256 matches the release's `checksums.txt`; otherwise they
+stop and install nothing. To install a given version, or somewhere else:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.sh | sh -s -- v0.7.0
+curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.sh | MANGABIND_INSTALL_DIR=/opt/bin sh
+```
+
+```powershell
+$env:MANGABIND_VERSION = "v0.7.0"; irm https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.ps1 | iex
+```
+
+`MANGABIND_VERSION`, `MANGABIND_INSTALL_DIR` and, for a mirror, `MANGABIND_BASE_URL` work in both;
+`MANGABIND_NO_MODIFY_PATH=1` stops the Windows script from editing your user `PATH`.
+
 With Go installed, you can also build and install the latest tagged version:
 
 ```sh
