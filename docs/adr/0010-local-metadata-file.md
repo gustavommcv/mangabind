@@ -4,7 +4,7 @@ Date: 2026-09-13
 
 ## Status
 
-Accepted
+Accepted; amended 2026-10-07 (what a file may say - see the end).
 
 ## Context
 

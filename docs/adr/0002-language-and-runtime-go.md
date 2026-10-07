@@ -4,7 +4,7 @@ Date: 2026-09-11
 
 ## Status
 
-Accepted
+Accepted. The Go version it names is no longer the minimum: that lives in `go.mod`.
 
 ## Context
 

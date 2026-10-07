@@ -196,7 +196,7 @@ func TestHelpIsAskedForAndGoesToStdout(t *testing.T) {
 			if code != 0 {
 				t.Errorf("exit code = %d, want 0", code)
 			}
-			for _, want := range []string{"Usage:", "Examples:", "Flags:", "-input", "-dry-run", "https://github.com/gustavommcv/mangabind"} {
+			for _, want := range []string{"Usage:", "Examples:", "Flags:", "-input", "-dry-run", "Exit codes:", "130  interrupted", "Output:", "https://github.com/gustavommcv/mangabind"} {
 				if !strings.Contains(stdout, want) {
 					t.Errorf("stdout is missing %q", want)
 				}

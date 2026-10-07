@@ -52,6 +52,10 @@ Use small synthetic fixtures in `testdata/`; parser tests usually need only chap
 Keep real manga used for local checks in the ignored `examples/` directory. Do not commit manga
 pages or make automated tests depend on a private collection.
 
+Two tests keep the documents honest: every issue code the program can emit must be in the table of
+`docs/machine-protocol-v1.md` (and no other), and every relative link in a Markdown file must point at
+a file that exists. If you add a code or move a document, they will tell you what to update.
+
 ### Add a chapter-naming convention
 
 1. Implement `ChapterNameParser` in `internal/parser/`.

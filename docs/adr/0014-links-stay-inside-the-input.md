@@ -4,7 +4,7 @@ Date: 2026-10-04
 
 ## Status
 
-Accepted.
+Accepted; amended 2026-10-07 (a library's links - see the end).
 
 ## Context
 

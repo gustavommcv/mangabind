@@ -5,7 +5,7 @@
 # With no version it installs the latest release. To choose, set variables
 # before running it (a script piped into iex cannot take parameters):
 #
-#   $env:MANGABIND_VERSION = "v0.7.0"      # a release to install instead of the latest (or 0.7.0)
+#   $env:MANGABIND_VERSION = "v0.6.1"      # a release to install instead of the latest (or 0.6.1)
 #   $env:MANGABIND_INSTALL_DIR = "D:\Tools" # where to put it (default: %LOCALAPPDATA%\Programs\mangabind)
 #   $env:MANGABIND_BASE_URL = "..."         # a folder or URL holding the release files, for a mirror or a test
 #   $env:MANGABIND_NO_MODIFY_PATH = "1"     # do not add the folder to your user PATH
