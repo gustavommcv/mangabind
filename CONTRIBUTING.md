@@ -2,7 +2,7 @@
 
 ## Setup
 
-Requires Go 1.23+. No other dependencies to install.
+Requires Go 1.26+ (the minimum is the `go` line of `go.mod`, and CI follows it). No other dependencies to install.
 
 ```bash
 go build ./...
