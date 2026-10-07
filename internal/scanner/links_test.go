@@ -63,7 +63,7 @@ func TestPagesFollowALinkToAFileInsideTheManga(t *testing.T) {
 	symlink(t, filepath.Join(l.root, "shared", "credits.png"), filepath.Join(l.chapter, "002.png"))
 	symlink(t, filepath.Join("..", "shared", "credits.png"), filepath.Join(l.chapter, "003.png"))
 
-	pages, links, err := Pages(l.root, l.chapter)
+	pages, _, links, err := Pages(l.root, l.chapter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestPagesSkipALinkToAFileOutsideTheManga(t *testing.T) {
 	symlink(t, filepath.Join(l.outside, "private.png"), filepath.Join(l.chapter, "002.png"))
 	symlink(t, filepath.Join("..", "..", "outside", "private.png"), filepath.Join(l.chapter, "003.png"))
 
-	pages, links, err := Pages(l.root, l.chapter)
+	pages, _, links, err := Pages(l.root, l.chapter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestPagesFollowEveryLinkOnTheWay(t *testing.T) {
 	symlink(t, l.outside, filepath.Join(l.root, "door"))
 	symlink(t, filepath.Join(l.root, "door", "private.png"), filepath.Join(l.chapter, "003.png"))
 
-	pages, links, err := Pages(l.root, l.chapter)
+	pages, _, links, err := Pages(l.root, l.chapter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestPagesSkipALinkThatLeadsToNoFile(t *testing.T) {
 	symlink(t, filepath.Join(l.root, "a folder"), filepath.Join(l.chapter, "003.png"))
 	symlink(t, l.outside, filepath.Join(l.chapter, "004.png"))
 
-	pages, links, err := Pages(l.root, l.chapter)
+	pages, _, links, err := Pages(l.root, l.chapter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestPagesCompareWithTheRealPathOfTheManga(t *testing.T) {
 	shortcut := filepath.Join(filepath.Dir(l.root), "shortcut")
 	symlink(t, l.root, shortcut)
 
-	pages, links, err := Pages(shortcut, filepath.Join(shortcut, filepath.Base(l.chapter)))
+	pages, _, links, err := Pages(shortcut, filepath.Join(shortcut, filepath.Base(l.chapter)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestPagesSayRootCouldNotBeChecked(t *testing.T) {
 	l := newLayout(t)
 	symlink(t, filepath.Join(l.root, "Vol.01 Ch.001", "001.png"), filepath.Join(l.chapter, "002.png"))
 
-	_, links, err := Pages(filepath.Join(l.root, "gone"), l.chapter)
+	_, _, links, err := Pages(filepath.Join(l.root, "gone"), l.chapter)
 	if err != nil {
 		t.Fatal(err)
 	}

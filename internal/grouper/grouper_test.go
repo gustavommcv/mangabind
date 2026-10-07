@@ -26,7 +26,7 @@ func TestGroup(t *testing.T) {
 			unparsed = append(unparsed, e.Name)
 			continue
 		}
-		pages, _, err := scanner.Pages("../../testdata/sample_manga", e.Path)
+		pages, _, _, err := scanner.Pages("../../testdata/sample_manga", e.Path)
 		if err != nil {
 			t.Fatal(err)
 		}

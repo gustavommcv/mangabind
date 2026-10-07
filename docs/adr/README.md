@@ -21,3 +21,4 @@ you need the "why," not just the "what."
 | [0013](0013-opt-in-machine-progress.md) | Add optional structured progress on stderr without changing the final JSON report or human output |
 | [0014](0014-links-stay-inside-the-input.md) | Follow a symbolic link only when it leads to a file inside the input; skip and report the rest |
 | [0015](0015-the-command-line-refuses-what-it-does-not-understand.md) | The command line refuses what it does not understand, and keeps help and notices off the result's stream |
+| [0016](0016-a-page-is-an-image.md) | A page is an image, by its name; known junk is left out silently and any other file with one warning per chapter |

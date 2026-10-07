@@ -27,7 +27,7 @@ func loadChapters(t *testing.T, root string) []Chapter {
 		if !ok {
 			t.Fatalf("unexpected unparsed folder in fixture: %q", e.Name)
 		}
-		pages, _, err := scanner.Pages(root, e.Path)
+		pages, _, _, err := scanner.Pages(root, e.Path)
 		if err != nil {
 			t.Fatal(err)
 		}

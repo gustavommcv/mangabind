@@ -8,6 +8,7 @@ import (
 	"archive/zip"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -107,10 +108,15 @@ func isIgnorableJunk(name string) bool {
 // order. Subdirectories are ignored. A page that is a link is listed only when
 // it leads to a file inside root, the manga's own folder; one that does not is
 // returned in links and left out of pages.
-func Pages(root, chapterDir string) (pages []string, links []Link, err error) {
+//
+// Only images are pages (see isPage): a file that is not one is left out too,
+// and named in skipped, except the junk that operating systems and download
+// tools leave in every folder (.DS_Store, Thumbs.db, ComicInfo.xml and the
+// like), which is left out without a word.
+func Pages(root, chapterDir string) (pages, skipped []string, links []Link, err error) {
 	entries, err := os.ReadDir(chapterDir)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	for _, e := range entries {
@@ -121,11 +127,65 @@ func Pages(root, chapterDir string) (pages []string, links []Link, err error) {
 			links = append(links, Link{Path: filepath.Join(chapterDir, e.Name()), Why: why})
 			continue
 		}
-		pages = append(pages, e.Name())
+		switch classifyPage(e.Name()) {
+		case pageImage:
+			pages = append(pages, e.Name())
+		case pageOther:
+			skipped = append(skipped, e.Name())
+		}
 	}
 
 	naturalsort.Strings(pages)
-	return pages, links, nil
+	naturalsort.Strings(skipped)
+	return pages, skipped, links, nil
+}
+
+// pageClass is what a file found where pages are expected turns out to be.
+type pageClass int
+
+const (
+	// pageImage is a file a comic reader opens as a page.
+	pageImage pageClass = iota
+	// pageJunk is a file that is never a page and never worth a word: the
+	// leftovers of a file manager, an archiver or a downloader.
+	pageJunk
+	// pageOther is any other file: not a page, and something the person may
+	// want to know was left out.
+	pageOther
+)
+
+// imageExtensions are the extensions of the files that are pages, compared
+// without regard to case. mangabind goes by the name and never opens a file, so
+// this is the whole definition of a page; it is deliberately wider than what
+// mangapress reads (jpg, jpeg, png, gif, bmp, webp), since a .cbz is for any
+// comic reader, and a reader that opens avif, jxl or tiff should find them.
+var imageExtensions = map[string]bool{
+	".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true,
+	".bmp": true, ".avif": true, ".jxl": true, ".tif": true, ".tiff": true,
+}
+
+// classifyPage says what a file is, by its name alone. name is a file name, or
+// for an archive entry its whole path inside the archive, written with either
+// separator: archives made on Windows often use backslashes.
+func classifyPage(name string) pageClass {
+	parts := strings.Split(strings.ReplaceAll(name, "\\", "/"), "/")
+	base := parts[len(parts)-1]
+	for _, dir := range parts[:len(parts)-1] {
+		if dir == "__MACOSX" {
+			return pageJunk // macOS's parallel tree of resource-fork sidecars
+		}
+	}
+	if strings.HasPrefix(base, "._") {
+		return pageJunk // a sidecar, named after the file it belongs to, extension and all
+	}
+	switch strings.ToLower(base) {
+	case ".ds_store", "thumbs.db", "desktop.ini", "comicinfo.xml":
+		return pageJunk
+	}
+	if imageExtensions[strings.ToLower(path.Ext(base))] {
+		return pageImage
+	}
+	return pageOther
 }
 
 // whyLinkIsUnsafe looks at one entry of dir, a folder inside root. It is empty
@@ -172,22 +232,30 @@ func inside(root, path string) bool {
 }
 
 // PagesInArchive lists the page entries inside a .cbz chapter archive, in
-// natural order. Directory entries within the archive are ignored.
-func PagesInArchive(cbzPath string) ([]string, error) {
+// natural order. Directory entries within the archive are ignored. As in
+// Pages, only images are pages: the other entries are named in skipped, apart
+// from the same junk (macOS adds a whole __MACOSX folder of it to the archives
+// it makes).
+func PagesInArchive(cbzPath string) (pages, skipped []string, err error) {
 	zr, err := zip.OpenReader(cbzPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer zr.Close()
 
-	var pages []string
 	for _, f := range zr.File {
 		if f.FileInfo().IsDir() {
 			continue
 		}
-		pages = append(pages, f.Name)
+		switch classifyPage(f.Name) {
+		case pageImage:
+			pages = append(pages, f.Name)
+		case pageOther:
+			skipped = append(skipped, f.Name)
+		}
 	}
 
 	naturalsort.Strings(pages)
-	return pages, nil
+	naturalsort.Strings(skipped)
+	return pages, skipped, nil
 }
