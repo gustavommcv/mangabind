@@ -237,6 +237,52 @@ func TestAnArchiveLinkLeadingOutsideIsNotAChapter(t *testing.T) {
 	}
 }
 
+func TestARejectedArchiveLinkIsReportedEvenWithoutOtherChapters(t *testing.T) {
+	base := t.TempDir()
+	manga := filepath.Join(base, "Hostile")
+	if err := os.MkdirAll(manga, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	archive := filepath.Join(base, "outside.cbz")
+	writeCBZ(t, archive, "001.jpg")
+	link := filepath.Join(manga, "Vol.01 Ch.001.cbz")
+	symlink(t, archive, link)
+
+	for _, extra := range [][]string{nil, {"-dry-run"}} {
+		out := filepath.Join(t.TempDir(), "out")
+		args := append([]string{"-input", manga, "-output", out}, extra...)
+
+		report, stderr, code := runMachineForTest(t, append(args, "-json")...)
+
+		if code != 0 || stderr != "" || report.Status != "completed_with_warnings" || len(report.Manga) != 1 {
+			t.Fatalf("%v: code = %d, stderr = %q, report = %+v", extra, code, stderr, report)
+		}
+		result := report.Manga[0]
+		if report.Summary.Warnings != 2 || result.Summary.Warnings != 2 || len(result.Issues) != 2 ||
+			report.Summary.Errors != 0 || report.Summary.Volumes != 0 || report.Summary.Pages != 0 ||
+			len(result.Units) != 0 || len(result.Volumes) != 0 {
+			t.Fatalf("%v: result = %+v, summary = %+v, want the link warning and no_chapters_found, no chapters or output", extra, result, report.Summary)
+		}
+		issue := result.Issues[0]
+		if issue.Code != "link_skipped" || issue.Severity != "warning" || issue.Stage != "inspect" ||
+			issue.Manga != "Hostile" || !issue.Recoverable || issue.Path != absolutePath(link) ||
+			issue.Chapter != nil || issue.Volume != nil || !strings.Contains(issue.Message, "leads outside the input folder") {
+			t.Errorf("issue = %+v, want a root-level warning about the link's own path, not its target", issue)
+		}
+		if issue := result.Issues[1]; issue.Code != "no_chapters_found" || issue.Path != absolutePath(manga) {
+			t.Errorf("last issue = %+v, want no_chapters_found for the input folder", issue)
+		}
+		code, stdout, stderr := runText(append(args, "-quiet")...)
+		if code != 0 || stdout != "" || strings.Count(stderr, "warning:") != 2 ||
+			strings.Count(stderr, "warning: "+issue.Message) != 1 || strings.Contains(stderr, archive) {
+			t.Errorf("%v: quiet run: code = %d, stdout = %q, stderr = %q, want both warnings once without the target path", extra, code, stdout, stderr)
+		}
+		if _, err := os.Stat(out); !os.IsNotExist(err) {
+			t.Errorf("an input without chapters created the output folder: %v", err)
+		}
+	}
+}
+
 func TestALibraryBindsTheOtherMangaWhenOneHasALinkOutside(t *testing.T) {
 	base := t.TempDir()
 	library := filepath.Join(base, "Library")

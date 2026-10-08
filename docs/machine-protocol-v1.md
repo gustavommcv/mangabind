@@ -143,6 +143,10 @@ Optional context is `manga`, `volume`, `chapter`, `special`, `path`, and `relate
 `diagnostic` may contain technical detail for an explicitly expanded diagnostics view. Consumers
 must branch on `code`, not English message text.
 
+When no chapter units are found, `no_chapters_found` accompanies any inspection warnings about
+unsupported files or skipped links; it does not replace them. The run still exits 0 with
+`status: "completed_with_warnings"`, and produces no volumes.
+
 Version 1 codes are:
 
 | Code | Stage | Meaning |

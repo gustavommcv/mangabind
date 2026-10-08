@@ -135,6 +135,66 @@ func TestTheWarningAboutSkippedFilesIsOnStderrAndQuietDoesNotHideIt(t *testing.T
 	}
 }
 
+func TestUnsupportedInputFilesAreReportedEvenWithoutChapters(t *testing.T) {
+	for _, mode := range []struct {
+		name string
+		args []string
+	}{
+		{"execute", nil},
+		{"plan", []string{"-dry-run"}},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			manga := filepath.Join(t.TempDir(), "Series")
+			writeFiles(t, manga, "chapter.pdf", "chapter.EPUB", ".DS_Store", "Thumbs.db")
+			out := filepath.Join(t.TempDir(), "out")
+			args := append([]string{"-input", manga, "-output", out}, mode.args...)
+
+			report, stderr, code := runMachineForTest(t, append(args, "-json")...)
+
+			if code != 0 || stderr != "" || report.Status != "completed_with_warnings" || len(report.Manga) != 1 {
+				t.Fatalf("code = %d, stderr = %q, report = %+v, want one manga with warnings", code, stderr, report)
+			}
+			result := report.Manga[0]
+			if report.Summary.Warnings != 3 || result.Summary.Warnings != 3 || len(result.Issues) != 3 ||
+				report.Summary.Errors != 0 || report.Summary.Volumes != 0 || report.Summary.Pages != 0 ||
+				len(result.Units) != 0 || len(result.Volumes) != 0 {
+				t.Fatalf("result = %+v, summary = %+v, want two file warnings and no_chapters_found with nothing produced", result, report.Summary)
+			}
+			for _, name := range []string{"chapter.pdf", "chapter.EPUB"} {
+				found := false
+				for _, issue := range result.Issues {
+					if issue.Code == "unsupported_input_file" && issue.Path == absolutePath(filepath.Join(manga, name)) {
+						found = true
+						if issue.Severity != "warning" || issue.Stage != "inspect" || issue.Manga != "Series" || !issue.Recoverable ||
+							!strings.Contains(issue.Message, strings.ToLower(filepath.Ext(name))+" chapters aren't supported") {
+							t.Errorf("issue = %+v, want a warning explaining the unsupported format", issue)
+						}
+					}
+				}
+				if !found {
+					t.Errorf("issues = %+v, want unsupported_input_file for %s", result.Issues, name)
+				}
+			}
+			if issue := result.Issues[2]; issue.Code != "no_chapters_found" || issue.Path != absolutePath(manga) {
+				t.Errorf("last issue = %+v, want no_chapters_found for the input folder", issue)
+			}
+
+			code, stdout, stderr := runText(append(args, "-quiet")...)
+			if code != 0 || stdout != "" || strings.Count(stderr, "warning:") != 3 {
+				t.Errorf("quiet run: code = %d, stdout = %q, stderr = %q, want three warnings only on stderr", code, stdout, stderr)
+			}
+			for _, issue := range result.Issues[:2] {
+				if strings.Count(stderr, "warning: "+issue.Message) != 1 {
+					t.Errorf("stderr = %q, want the file warning once: %s", stderr, issue.Message)
+				}
+			}
+			if _, err := os.Stat(out); !os.IsNotExist(err) {
+				t.Errorf("an input without chapters created the output folder: %v", err)
+			}
+		})
+	}
+}
+
 func TestAPlanCountsOnlyTheImages(t *testing.T) {
 	manga := filepath.Join(t.TempDir(), "Series")
 	writeFiles(t, filepath.Join(manga, "Vol.01 Ch.001"), "001.jpg", "002.jpg", ".DS_Store", "notes.txt")
