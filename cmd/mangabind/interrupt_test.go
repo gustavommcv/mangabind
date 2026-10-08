@@ -180,6 +180,109 @@ func TestCtrlCWhileACombinedSeriesIsWrittenLeavesNothing(t *testing.T) {
 	}
 }
 
+func TestCtrlCOnTheFinalPageDoesNotCommitOrReportCompletion(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		input          func(*testing.T) string
+		flags          []string
+		manga          string
+		canceledFile   string
+		files          []string
+		plannedVolumes int
+		writtenVolumes int
+		writtenPages   int
+	}{
+		{
+			name: "separate volumes", input: aSeriesOfThreeVolumes, manga: "Series",
+			canceledFile:   "Series - Vol.03.cbz",
+			files:          []string{"Series - Vol.01.cbz", "Series - Vol.02.cbz", "Series - Vol.03.cbz"},
+			plannedVolumes: 3, writtenVolumes: 2, writtenPages: 4,
+		},
+		{
+			name: "combined series", input: aSeriesOfThreeVolumes, flags: []string{"-combine"}, manga: "Series",
+			canceledFile: "Series.cbz", files: []string{"Series.cbz"}, plannedVolumes: 3,
+		},
+		{
+			name: "batch", input: aLibraryOfTwoManga, flags: []string{"-batch"}, manga: "Alpha",
+			canceledFile: "Alpha - Vol.01.cbz", files: []string{"Alpha - Vol.01.cbz"}, plannedVolumes: 1,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			input := tc.input(t)
+			out := t.TempDir()
+			canceledPath := filepath.Join(out, tc.canceledFile)
+			if err := os.WriteFile(canceledPath, []byte("the good volume"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			stderr := &cancelOn{cancel: cancel, trigger: func(written string) bool {
+				var event machineProgress
+				if err := json.Unmarshal([]byte(written), &event); err != nil {
+					return false
+				}
+				return event.Stage == "write" && event.State == "advanced" && event.CompletedPages != nil &&
+					*event.CompletedPages == event.TotalPages
+			}}
+			var stdout bytes.Buffer
+			args := append([]string{"-input", input, "-output", out, "-json", "-progress-json"}, tc.flags...)
+
+			code := runCLIContext(ctx, args, &stdout, stderr)
+
+			if !stderr.fired || code != exitInterrupted {
+				t.Errorf("cancel fired = %v, exit code = %d, want true and %d", stderr.fired, code, exitInterrupted)
+			}
+			if got, err := os.ReadFile(canceledPath); err != nil || string(got) != "the good volume" {
+				t.Errorf("the volume is %q (err %v), want it untouched", got, err)
+			}
+			if got := folderListing(t, out); !reflect.DeepEqual(got, tc.files) {
+				t.Errorf("the output folder holds %v, want %v: no part file or next manga", got, tc.files)
+			}
+
+			report := decodeReport(t, stdout.Bytes())
+			if report.Status != "failed" || len(report.Manga) != 1 {
+				t.Fatalf("report = %+v, want a failed run with one manga", report)
+			}
+			manga := report.Manga[0]
+			if manga.Name != tc.manga || manga.Status != "failed" || len(manga.Issues) != 1 {
+				t.Fatalf("manga = %+v, want %s failed with one interruption", manga, tc.manga)
+			}
+			issue := manga.Issues[0]
+			if issue.Code != "interrupted" || issue.Severity != "error" || issue.Stage != "write" ||
+				!issue.Recoverable || issue.Path != absolutePath(canceledPath) {
+				t.Errorf("issue = %+v, want a recoverable write interruption at %s", issue, canceledPath)
+			}
+			if report.Summary.Volumes != tc.writtenVolumes || report.Summary.Pages != tc.writtenPages ||
+				manga.Summary.Volumes != tc.writtenVolumes || manga.Summary.Pages != tc.writtenPages {
+				t.Errorf("summaries = %+v, %+v, want only %d committed volumes and %d pages", report.Summary, manga.Summary, tc.writtenVolumes, tc.writtenPages)
+			}
+			if len(manga.Volumes) != tc.plannedVolumes {
+				t.Fatalf("volumes = %+v, want %d planned", manga.Volumes, tc.plannedVolumes)
+			}
+			for i, volume := range manga.Volumes {
+				if volume.Written != (i < tc.writtenVolumes) {
+					t.Errorf("volume %d = %+v, want only previously committed volumes marked written", i+1, volume)
+				}
+			}
+			completed := 0
+			for _, event := range parseProgressLines(t, stderr.String()) {
+				if event.Manga != tc.manga {
+					t.Errorf("progress for an unexpected manga: %+v", event)
+				}
+				if event.Stage == "write" && event.State == "completed" {
+					completed++
+					if reportedPages(t, event) == event.TotalPages {
+						t.Errorf("the interrupted archive was reported completed: %+v", event)
+					}
+				}
+			}
+			if completed != tc.writtenVolumes {
+				t.Errorf("%d completed write events, want %d", completed, tc.writtenVolumes)
+			}
+		})
+	}
+}
+
 func aLibraryOfTwoManga(t *testing.T) string {
 	t.Helper()
 	library := t.TempDir()

@@ -118,32 +118,59 @@ func TestAFailedFirstWriteLeavesNothingAtAll(t *testing.T) {
 }
 
 func TestAWriteThatIsCanceledStopsAndCleansUp(t *testing.T) {
-	dir := t.TempDir()
-	out := filepath.Join(dir, "Vol.01.cbz")
-	if err := os.WriteFile(out, []byte("the good volume"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	copied := 0
+	for _, tc := range []struct {
+		name     string
+		pages    int
+		cancelAt int
+	}{
+		{"middle page", 5, 2},
+		{"final page", 5, 5},
+		{"only page", 1, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, existing := range []bool{false, true} {
+				name := "new destination"
+				if existing {
+					name = "existing destination"
+				}
+				t.Run(name, func(t *testing.T) {
+					dir := t.TempDir()
+					out := filepath.Join(dir, "Vol.01.cbz")
+					if existing {
+						if err := os.WriteFile(out, []byte("the good volume"), 0o644); err != nil {
+							t.Fatal(err)
+						}
+					}
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					copied := 0
 
-	err := WriteWithProgress(ctx, out, plainPages(t, dir, 5), func(completed int) {
-		copied = completed
-		if completed == 2 {
-			cancel() // the person pressed Ctrl-C while the second page was copied
-		}
-	})
+					err := WriteWithProgress(ctx, out, plainPages(t, dir, tc.pages), func(completed int) {
+						copied = completed
+						if completed == tc.cancelAt {
+							cancel()
+						}
+					})
 
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("error = %v, want one that wraps context.Canceled", err)
-	}
-	if copied != 2 {
-		t.Errorf("%d pages were copied, want it to stop after the second", copied)
-	}
-	if got, _ := os.ReadFile(out); string(got) != "the good volume" {
-		t.Errorf("the volume is %q, want the one that was there", got)
-	}
-	if listing := folderListing(t, dir); !reflect.DeepEqual(listing, []string{"Vol.01.cbz", "src"}) {
-		t.Errorf("the folder holds %v: the part file was left behind", listing)
+					if !errors.Is(err, context.Canceled) {
+						t.Errorf("error = %v, want one that wraps context.Canceled", err)
+					}
+					if copied != tc.cancelAt {
+						t.Errorf("%d pages were copied, want %d", copied, tc.cancelAt)
+					}
+					wantFiles := []string{"src"}
+					if existing {
+						wantFiles = []string{"Vol.01.cbz", "src"}
+						if got, err := os.ReadFile(out); err != nil || string(got) != "the good volume" {
+							t.Errorf("the volume is %q (err %v), want the one that was there", got, err)
+						}
+					}
+					if got := folderListing(t, dir); !reflect.DeepEqual(got, wantFiles) {
+						t.Errorf("the folder holds %v, want %v: no new volume or part file", got, wantFiles)
+					}
+				})
+			}
+		})
 	}
 }
 

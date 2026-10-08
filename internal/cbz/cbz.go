@@ -37,9 +37,9 @@ func Write(outPath string, pages []grouper.Page) error {
 // after the failure missing), and took with it the good volume it replaced.
 // On any failure the part file is removed.
 //
-// ctx is looked at before each page. When it is done the write stops, the part
-// file is removed, and the error wraps ctx's: errors.Is(err, context.Canceled)
-// is how a caller tells an interruption from a failure.
+// ctx is checked before each page and immediately before publishing the archive.
+// When it is done the write stops, the part file is removed, and the error wraps
+// ctx's: errors.Is(err, context.Canceled) distinguishes an interruption from a failure.
 func WriteWithProgress(ctx context.Context, outPath string, pages []grouper.Page, onPage func(completed int)) (err error) {
 	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 		return err
@@ -87,6 +87,10 @@ func WriteWithProgress(ctx context.Context, outPath string, pages []grouper.Page
 		return err
 	}
 	if err := f.Close(); err != nil {
+		return err
+	}
+	// Cancellation during the last page or finalization must not replace outPath.
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	return os.Rename(part, outPath)
