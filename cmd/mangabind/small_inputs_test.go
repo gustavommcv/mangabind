@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,6 +110,30 @@ func TestAMetadataFileThatCouldNotBeUsedIsAnErrorNotACrash(t *testing.T) {
 				t.Errorf("machine: code = %d, issues = %+v, want one metadata_load_failed", jsonCode, report.Manga[0].Issues)
 			}
 		})
+	}
+}
+
+func TestMetadataRangesAtTheIntLimitDoNotBlockProcessing(t *testing.T) {
+	manga := aMangaWithoutVolumesInItsNames(t)
+	writeMetadata(t, manga, fmt.Sprintf(`{"schema_version": 1, "volumes": [
+		{"number": "1", "chapters": ["%d-%d", "1-3"]}
+	]}`, math.MaxInt, math.MaxInt))
+	out := filepath.Join(t.TempDir(), "out")
+
+	report, stderr, code := runMachineForTest(t, "-input", manga, "-output", out, "-json")
+
+	if code != 0 || report.Status != "completed" || stderr != "" {
+		t.Fatalf("code = %d, status = %s, stderr = %q, want success", code, report.Status, stderr)
+	}
+	if report.Summary.Volumes != 1 || report.Summary.Pages != 3 || report.Summary.Errors != 0 || report.Summary.Warnings != 0 {
+		t.Fatalf("summary = %+v, want one volume of three pages without issues", report.Summary)
+	}
+	volumes := report.Manga[0].Volumes
+	if len(volumes) != 1 || !volumes[0].Written || volumes[0].Number != 1 {
+		t.Fatalf("volumes = %+v, want volume 1 written", volumes)
+	}
+	if pages := zipEntryNames(t, volumes[0].OutputPath); len(pages) != 3 {
+		t.Errorf("the written volume holds %v, want three pages", pages)
 	}
 }
 
