@@ -608,6 +608,17 @@ func processMangaDetailed(ctx context.Context, input, output, metadataFile strin
 		finalizeMangaReport(&report, summary)
 		return summary, report, wrapped
 	}
+	reportLinks(&report, mangaName, links, nil, human, stderr)
+	for _, name := range skipped {
+		message := unsupportedFileMessage(name)
+		if human {
+			printlnTo(stderr, "warning:", message)
+		}
+		value := issue("warning", "unsupported_input_file", "inspect", message)
+		value.Manga = mangaName
+		value.Path = absolutePath(filepath.Join(input, name))
+		report.addIssue(value)
+	}
 	if len(entries) == 0 {
 		if human {
 			// A warning, so -quiet does not hide that nothing was done.
@@ -619,17 +630,6 @@ func processMangaDetailed(ctx context.Context, input, output, metadataFile strin
 		report.addIssue(value)
 		finalizeMangaReport(&report, summary)
 		return summary, report, nil
-	}
-	reportLinks(&report, mangaName, links, nil, human, stderr)
-	for _, name := range skipped {
-		message := unsupportedFileMessage(name)
-		if human {
-			printlnTo(stderr, "warning:", message)
-		}
-		value := issue("warning", "unsupported_input_file", "inspect", message)
-		value.Manga = mangaName
-		value.Path = absolutePath(filepath.Join(input, name))
-		report.addIssue(value)
 	}
 
 	reg := parser.DefaultRegistry()
