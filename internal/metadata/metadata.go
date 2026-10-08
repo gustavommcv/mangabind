@@ -151,9 +151,11 @@ func expandChapterToken(token string, budget int) ([]chapterKey, error) {
 		if hi-lo >= budget {
 			return nil, fmt.Errorf("chapter range %q is too large: a file may list at most %d chapters", token, maxChapters)
 		}
-		keys := make([]chapterKey, 0, hi-lo+1)
-		for n := lo; n <= hi; n++ {
-			keys = append(keys, chapterKey{float64(n), ""})
+		count := hi - lo + 1
+		keys := make([]chapterKey, 0, count)
+		// Iterate by count so the chapter number never advances past MaxInt.
+		for offset := 0; offset < count; offset++ {
+			keys = append(keys, chapterKey{float64(lo + offset), ""})
 		}
 		return keys, nil
 	}

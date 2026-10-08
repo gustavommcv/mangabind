@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"fmt"
+	"math"
 	"runtime"
 	"strings"
 	"testing"
@@ -74,6 +75,51 @@ func TestAFileMayListAsManyChaptersAsTheCapAndNoMore(t *testing.T) {
 		_, err := Load(writeFile(t, volumesFile(c.volumes...)))
 		if (err == nil) != c.ok {
 			t.Errorf("%s: error = %v, want ok = %v", c.name, err, c.ok)
+		}
+	}
+}
+
+func TestARangeEndingAtTheLargestIntHasOnlyItsDeclaredChapters(t *testing.T) {
+	cases := []struct {
+		name          string
+		lo, hi        int
+		budget, count int
+	}{
+		{"zero", 0, 0, 1, 1},
+		{"ordinary range", 3, 5, 3, 3},
+		{"one chapter at the int limit", math.MaxInt, math.MaxInt, 1, 1},
+		{"two chapters ending at the int limit", math.MaxInt - 1, math.MaxInt, 2, 2},
+		{"range just below the int limit", math.MaxInt - 3, math.MaxInt - 1, 4, 3},
+		{"the full budget ending at the int limit", math.MaxInt - maxChapters + 1, math.MaxInt, maxChapters, maxChapters},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			token := fmt.Sprintf("%d-%d", c.lo, c.hi)
+			keys, err := expandChapterToken(token, c.budget)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(keys) != c.count {
+				t.Fatalf("range %q expanded to %d chapters, want %d", token, len(keys), c.count)
+			}
+			for i, key := range keys {
+				want := chapterKey{chapter: float64(c.lo + i)}
+				if key != want {
+					t.Fatalf("chapter %d = %+v, want %+v", i, key, want)
+				}
+			}
+		})
+	}
+}
+
+func TestARangeAtTheIntLimitStillUsesTheChapterBudget(t *testing.T) {
+	for _, c := range []struct {
+		count, budget int
+	}{{1, 0}, {2, 1}, {maxChapters + 1, maxChapters}} {
+		token := fmt.Sprintf("%d-%d", math.MaxInt-c.count+1, math.MaxInt)
+		keys, err := expandChapterToken(token, c.budget)
+		if err == nil || !strings.Contains(err.Error(), "too large") || keys != nil {
+			t.Errorf("range %q with budget %d: keys = %v, error = %v, want refusal before expansion", token, c.budget, keys, err)
 		}
 	}
 }
