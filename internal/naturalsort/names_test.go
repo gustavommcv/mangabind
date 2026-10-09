@@ -17,7 +17,9 @@ func groups(t *testing.T) [][]string {
 		t.Fatal(err)
 	}
 	var out [][]string
-	for _, block := range strings.Split(string(data), "---\n")[1:] {
+	// A checkout may have turned line feeds into carriage returns and line feeds.
+	text := strings.ReplaceAll(string(data), "\r\n", "\n")
+	for _, block := range strings.Split(text, "---\n")[1:] {
 		var names []string
 		for _, line := range strings.Split(block, "\n") {
 			if line != "" {
