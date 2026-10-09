@@ -212,6 +212,13 @@ Small examples are usually enough to reproduce a naming problem. See [CONTRIBUTI
 for setup, tests, and adding a parser, or browse the [architecture decisions](docs/adr/README.md).
 Report suspected vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
+## AI disclosure
+
+Parts of Mangabind, including code, tests, and documentation, were written with the help of AI
+coding assistants. The maintainers direct, review, and test this work, but AI-assisted contributions
+can contain mistakes like any other. If you find a bug or an error in the documentation, please
+[open an issue](https://github.com/gustavommcv/mangabind/issues).
+
 ## License
 
 [MIT](LICENSE).
