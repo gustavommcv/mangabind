@@ -6,7 +6,7 @@
 
 Mangabind groups manga chapters into volumes. Give it a folder of chapter folders or CBZ files,
 and it creates one CBZ per volume, or a single archive for the whole series. Pages stay in chapter
-order, and their image contents are preserved.
+order, in the order Kindle Comic Converter would give them ([ADR 0019](docs/adr/0019-pages-are-put-in-order-as-kcc-does.md)), and their image contents are preserved.
 
 Open the result in a CBZ reader, or convert it for your e-reader with
 [mangapress](https://github.com/gustavommcv/mangapress) or
