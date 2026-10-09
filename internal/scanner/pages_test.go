@@ -154,7 +154,8 @@ func TestPagesInAnArchiveAreItsImages(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if want := []string{"002.JPG", "010.jpg", "dir/001.png", `win\003.webp`}; !reflect.DeepEqual(pages, want) {
+	// A file lying in the archive comes before the folders in it, and a name with a backslash is a file.
+	if want := []string{"002.JPG", "010.jpg", `win\003.webp`, "dir/001.png"}; !reflect.DeepEqual(pages, want) {
 		t.Errorf("pages = %v, want %v", pages, want)
 	}
 	if want := []string{"dir/credits.html", "notes.txt"}; !reflect.DeepEqual(skipped, want) {
@@ -196,10 +197,80 @@ func TestPagesInAnArchiveThatGODEBUGCallsInsecureAreStillListed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PagesInArchive() = %v, want the entries listed despite the name", err)
 	}
-	if want := []string{"../002.jpg", "001.jpg"}; !reflect.DeepEqual(pages, want) {
+	if want := []string{"001.jpg", "../002.jpg"}; !reflect.DeepEqual(pages, want) {
 		t.Errorf("pages = %v, want %v", pages, want)
 	}
 	if want := []string{"notes.txt"}; !reflect.DeepEqual(skipped, want) {
 		t.Errorf("skipped = %v, want %v", skipped, want)
+	}
+}
+
+// The order KCC gives these names, from the real natsort library: a name comes before the
+// names that continue it, and digits of every script are numbers.
+var kccOrder = []string{
+	"1.png", "1.5.png", "1.10.png", "２.png", "3.png", "１０.png",
+	"p01.png", "p01 (2).png", "p01-2.png", "p01_b.png", "x.png", "x1.png",
+}
+
+func shuffled(names []string) []string {
+	out := make([]string, len(names))
+	for i, name := range names {
+		out[len(names)-1-i] = name
+	}
+	return out
+}
+
+func TestPagesOfAFolderAreInTheOrderKCCGivesThem(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range shuffled(kccOrder) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	pages, _, _, err := Pages(dir, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(pages, kccOrder) {
+		t.Errorf("pages = %q, want %q", pages, kccOrder)
+	}
+}
+
+func TestPagesOfAnArchiveAreInTheOrderKCCGivesThem(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "Ch.001.cbz")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw := zip.NewWriter(f)
+	for _, name := range shuffled(kccOrder) {
+		w, err := zw.Create("Wrapper/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte("x")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	pages, _, _, err := PagesInArchive(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := make([]string, len(kccOrder))
+	for i, name := range kccOrder {
+		want[i] = "Wrapper/" + name
+	}
+	if !reflect.DeepEqual(pages, want) {
+		t.Errorf("pages = %q, want %q", pages, want)
 	}
 }

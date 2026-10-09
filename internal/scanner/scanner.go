@@ -172,7 +172,7 @@ func Pages(root, chapterDir string) (pages, skipped []string, links []Link, err 
 		}
 	}
 
-	naturalsort.Strings(pages)
+	naturalsort.Names(pages)
 	naturalsort.Strings(skipped)
 	return pages, skipped, links, nil
 }
@@ -344,7 +344,7 @@ func PagesInArchive(cbzPath string) (pages, skipped []string, oversized []Oversi
 		}
 	}
 
-	naturalsort.Strings(pages)
+	naturalsort.Paths(pages)
 	naturalsort.Strings(skipped)
 	sort.Slice(oversized, func(i, j int) bool { return naturalsort.Less(oversized[i].Name, oversized[j].Name) })
 	return pages, skipped, oversized, nil
