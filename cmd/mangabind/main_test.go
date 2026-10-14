@@ -201,7 +201,7 @@ func TestProcessMangaEndToEnd(t *testing.T) {
 	makeChapter(t, input, "Vol.01 Ch.0002 - Beta (en) [Group]", 3)
 
 	output := filepath.Join(root, "out")
-	summary, err := processManga(input, output, "", true, false)
+	summary, err := processMangaOnTerminal(input, output, "", true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +226,7 @@ func TestProcessMangaDryRunWritesNothing(t *testing.T) {
 	makeChapter(t, input, "Vol.01 Ch.0001 - Alpha (en) [Group]", 1)
 
 	output := filepath.Join(root, "out")
-	summary, err := processManga(input, output, "", true, true /* dryRun */)
+	summary, err := processMangaOnTerminal(input, output, "", true, true /* dryRun */)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,7 +308,7 @@ func TestProcessMangaMetadataFillsMissingVolume(t *testing.T) {
 
 	output := filepath.Join(root, "out")
 	// No explicit -metadata-file: relies on the mangabind.json convention.
-	summary, err := processManga(input, output, "", true, false)
+	summary, err := processMangaOnTerminal(input, output, "", true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -332,7 +332,7 @@ func TestProcessMangaMetadataNeverOverridesFilename(t *testing.T) {
 	}`)
 
 	output := filepath.Join(root, "out")
-	summary, err := processManga(input, output, metaPath, true, false)
+	summary, err := processMangaOnTerminal(input, output, metaPath, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -471,7 +471,7 @@ func TestRunBatchProcessesEveryMangaIndependently(t *testing.T) {
 	makeChapter(t, filepath.Join(library, "One Piece"), "Vol.01 Ch.0002 - Gamma (en) [Group]", 1)
 
 	output := filepath.Join(root, "out")
-	if err := runBatch(library, output, true, false); err != nil {
+	if err := runBatchOnTerminal(library, output, true, false); err != nil {
 		t.Fatal(err)
 	}
 

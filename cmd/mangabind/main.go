@@ -150,10 +150,20 @@ func runCLIContext(ctx context.Context, args []string, stdout, stderr io.Writer)
 		return 0
 	}
 
+	opts := runOptions{
+		output:       output,
+		metadataFile: cfg.metadataFile,
+		quiet:        cfg.quiet,
+		dryRun:       cfg.dryRun,
+		combine:      cfg.combine,
+		human:        true,
+		stdout:       stdout,
+		stderr:       stderr,
+	}
 	if cfg.batch {
-		err = runBatchWithOutput(ctx, cfg.input, output, cfg.quiet, cfg.dryRun, cfg.combine, stdout, stderr)
+		err = runBatch(ctx, cfg.input, opts)
 	} else {
-		_, err = processMangaWithOutput(ctx, cfg.input, output, cfg.metadataFile, cfg.quiet, cfg.dryRun, cfg.combine, stdout, stderr)
+		_, _, err = processManga(ctx, cfg.input, opts)
 	}
 	if err != nil {
 		// An interruption has already been said, where it happened.

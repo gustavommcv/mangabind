@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 
 	"github.com/gustavommcv/mangabind/internal/scanner"
@@ -15,11 +13,8 @@ import (
 // immediate subdirectory independently: one manga failing (or producing no
 // volumes) is reported but never stops the rest of the batch, the same way
 // one bad chapter never stops the rest of a single manga's volumes.
-func runBatch(libraryInput, output string, quiet, dryRun bool) error {
-	return runBatchWithOutput(context.Background(), libraryInput, output, quiet, dryRun, false, os.Stdout, os.Stderr)
-}
-
-func runBatchWithOutput(ctx context.Context, libraryInput, output string, quiet, dryRun, combine bool, stdout, stderr io.Writer) error {
+func runBatch(ctx context.Context, libraryInput string, opts runOptions) error {
+	stdout, stderr := opts.stdout, opts.stderr
 	mangaNames, links, err := scanner.Library(libraryInput)
 	if err != nil {
 		return fmt.Errorf("scanning library %s: %w", libraryInput, err)
@@ -40,13 +35,13 @@ func runBatchWithOutput(ctx context.Context, libraryInput, output string, quiet,
 		}
 		mangaCount++
 		mangaPath := filepath.Join(libraryInput, name)
-		if !quiet {
+		if !opts.quiet {
 			printfTo(stdout, "== %s ==\n", name)
 		}
 
 		// No explicit override in batch mode - each manga only picks up its
 		// own mangabind.json convention file, if it has one.
-		summary, err := processMangaWithOutput(ctx, mangaPath, output, "", quiet, dryRun, combine, stdout, stderr)
+		summary, _, err := processManga(ctx, mangaPath, opts.forManga())
 		if errors.Is(err, context.Canceled) {
 			return err
 		}

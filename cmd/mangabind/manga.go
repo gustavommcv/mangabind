@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 
 	"github.com/gustavommcv/mangabind/internal/cbz"
@@ -20,15 +19,6 @@ import (
 type mangaSummary struct {
 	volumes int
 	pages   int
-}
-
-func processManga(input, output, metadataFile string, quiet, dryRun bool) (mangaSummary, error) {
-	return processMangaWithOutput(context.Background(), input, output, metadataFile, quiet, dryRun, false, os.Stdout, os.Stderr)
-}
-
-func processMangaWithOutput(ctx context.Context, input, output, metadataFile string, quiet, dryRun, combine bool, stdout, stderr io.Writer) (mangaSummary, error) {
-	summary, _, err := processMangaDetailed(ctx, input, output, metadataFile, quiet, dryRun, combine, true, stdout, stderr, nil)
-	return summary, err
 }
 
 // interruption records that the run was stopped by a signal: as an issue in the
@@ -47,7 +37,11 @@ func interruption(report *mangaReport, mangaName, stage, message, path string, h
 	return fmt.Errorf("interrupted: %w", cause)
 }
 
-func processMangaDetailed(ctx context.Context, input, output, metadataFile string, quiet, dryRun, combine, human bool, stdout, stderr io.Writer, progress progressSink) (mangaSummary, mangaReport, error) {
+// processManga reads the chapters in input and writes its volumes as the options say. It gives the tally
+// of what was written, the report of the manga, and the error that ended the run, if one did.
+func processManga(ctx context.Context, input string, opts runOptions) (mangaSummary, mangaReport, error) {
+	output, quiet, dryRun, combine, human := opts.output, opts.quiet, opts.dryRun, opts.combine, opts.human
+	stdout, stderr, progress := opts.stdout, opts.stderr, opts.progress
 	var summary mangaSummary
 	mangaName := folderName(input)
 	report := newMangaReport(mangaName, absolutePath(input))
@@ -56,7 +50,7 @@ func processMangaDetailed(ctx context.Context, input, output, metadataFile strin
 	}
 
 	var metaMap *metadata.Map
-	if mf := resolveMetadataFile(input, metadataFile); mf != "" {
+	if mf := resolveMetadataFile(input, opts.metadataFile); mf != "" {
 		report.MetadataFile = absolutePath(mf)
 		m, err := metadata.Load(mf)
 		if err != nil {

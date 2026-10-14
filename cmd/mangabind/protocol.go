@@ -251,20 +251,20 @@ func runMachine(ctx context.Context, cfg cliConfig, output string, progress prog
 	report.InputPath = absolutePath(cfg.input)
 	report.OutputPath = absolutePath(output)
 
+	// The report is the whole answer: nothing is said for people, and what would be is dropped.
+	opts := runOptions{
+		output:       output,
+		metadataFile: cfg.metadataFile,
+		quiet:        true,
+		dryRun:       cfg.dryRun,
+		combine:      cfg.combine,
+		stdout:       io.Discard,
+		stderr:       io.Discard,
+		progress:     progress,
+	}
+
 	if !cfg.batch {
-		_, manga, err := processMangaDetailed(
-			ctx,
-			cfg.input,
-			output,
-			cfg.metadataFile,
-			true,
-			cfg.dryRun,
-			cfg.combine,
-			false,
-			io.Discard,
-			io.Discard,
-			progress,
-		)
+		_, manga, err := processManga(ctx, cfg.input, opts)
 		report.addManga(manga)
 		return report, err
 	}
@@ -299,19 +299,7 @@ func runMachine(ctx context.Context, cfg cliConfig, output string, progress prog
 			return report, fmt.Errorf("interrupted: %w", cause)
 		}
 		mangaPath := filepath.Join(cfg.input, name)
-		_, manga, mangaErr := processMangaDetailed(
-			ctx,
-			mangaPath,
-			output,
-			"",
-			true,
-			cfg.dryRun,
-			cfg.combine,
-			false,
-			io.Discard,
-			io.Discard,
-			progress,
-		)
+		_, manga, mangaErr := processManga(ctx, mangaPath, opts.forManga())
 		report.addManga(manga)
 		if errors.Is(mangaErr, context.Canceled) {
 			return report, mangaErr
