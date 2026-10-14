@@ -42,12 +42,12 @@ They install an archive only if its SHA-256 matches the release's `checksums.txt
 stop and install nothing. To install a given version, or somewhere else:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.sh | sh -s -- v0.6.1
+curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.sh | sh -s -- v0.7.2
 curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.sh | MANGABIND_INSTALL_DIR=/opt/bin sh
 ```
 
 ```powershell
-$env:MANGABIND_VERSION = "v0.6.1"; irm https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.ps1 | iex
+$env:MANGABIND_VERSION = "v0.7.2"; irm https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.ps1 | iex
 ```
 
 `MANGABIND_VERSION`, `MANGABIND_INSTALL_DIR` and, for a mirror, `MANGABIND_BASE_URL` work in both;
