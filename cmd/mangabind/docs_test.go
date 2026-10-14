@@ -44,7 +44,10 @@ func TestTheProtocolDocumentListsEveryIssueCodeAndOnlyThose(t *testing.T) {
 	root := repositoryRoot(t)
 
 	emitted := map[string]bool{}
-	issueCall := regexp.MustCompile(`issue\(\s*"(?:error|warning)"\s*,\s*"([a-z_]+)"`)
+	// A code is written where an issue is made (issue, or the reporter's record) or where the reporter is
+	// asked to warn of it or to fail with it.
+	issueCall := regexp.MustCompile(`(?:issue|\.record)\(\s*"(?:error|warning)"\s*,\s*"([a-z_]+)"`)
+	reporterCall := regexp.MustCompile(`\.(?:warn|fail)\(\s*"([a-z_]+)"`)
 	codeAssignment := regexp.MustCompile(`\.Code = "([a-z_]+)"`)
 	sources, err := filepath.Glob(filepath.Join(root, "cmd", "mangabind", "*.go"))
 	if err != nil {
@@ -56,6 +59,9 @@ func TestTheProtocolDocumentListsEveryIssueCodeAndOnlyThose(t *testing.T) {
 		}
 		text := readText(t, source)
 		for _, match := range issueCall.FindAllStringSubmatch(text, -1) {
+			emitted[match[1]] = true
+		}
+		for _, match := range reporterCall.FindAllStringSubmatch(text, -1) {
 			emitted[match[1]] = true
 		}
 		for _, match := range codeAssignment.FindAllStringSubmatch(text, -1) {

@@ -2,12 +2,10 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"path/filepath"
 	"strings"
 
 	"github.com/gustavommcv/mangabind/internal/metadata"
-	"github.com/gustavommcv/mangabind/internal/parser"
 	"github.com/gustavommcv/mangabind/internal/scanner"
 )
 
@@ -44,8 +42,8 @@ func summarizeNames(label string, names []string, hint string) []string {
 	return append(lines, rest)
 }
 
-// libraryLinkMessage says of a link found in a library folder that it was not
-// followed, in the words reportLinks uses for the links inside a manga.
+// libraryLinkMessage says of a link that it was not followed: one found in a
+// library folder, or one inside a manga.
 func libraryLinkMessage(link scanner.Link) string {
 	return fmt.Sprintf("found a link %q that %s, skipped", filepath.Base(link.Path), link.Why)
 }
@@ -60,87 +58,6 @@ func duplicateChaptersMessage(duplicates []metadata.Duplicate) string {
 		return fmt.Sprintf("the metadata file lists chapter %s under volumes %v and %v; the last one, volume %v, is used", chapter, first.Earlier, first.Later, first.Later)
 	}
 	return fmt.Sprintf("the metadata file lists %d chapters under more than one volume (the first is chapter %s, under volumes %v and %v); the last listing of each is used", len(duplicates), chapter, first.Earlier, first.Later)
-}
-
-// reportLinks tells of the links the scanner did not follow: a warning for
-// each, naming the link and what is wrong with it, and nothing of it goes into
-// a volume (docs/adr/0014-links-stay-inside-the-input.md). chapter is the
-// chapter a page link was found in, and nil for a link found beside the
-// chapters; the issue names its volume when it has one, so that a consumer
-// can tell which volume lacks the page.
-func reportLinks(report *mangaReport, mangaName string, links []scanner.Link, chapter *parser.ParsedChapter, human bool, stderr io.Writer) {
-	for _, link := range links {
-		message := fmt.Sprintf("found a link %q that %s, skipped", filepath.Base(link.Path), link.Why)
-		if human {
-			printlnTo(stderr, "warning:", message)
-		}
-		value := issue("warning", "link_skipped", "inspect", message)
-		value.Manga = mangaName
-		value.Path = absolutePath(link.Path)
-		if chapter != nil {
-			value.Volume = copyFloat(chapter.Volume)
-			value.Chapter = copyFloat(&chapter.Chapter)
-			value.Special = chapter.Special
-		}
-		report.addIssue(value)
-	}
-}
-
-// reportSkippedPages tells of the files of one chapter that were left out
-// because they are not images: one warning for the chapter, naming a few of
-// them, since a downloader that adds a credits page to every chapter would
-// otherwise make a hundred lines of the same complaint. For a folder the issue
-// lists every file in related_paths; for a .cbz chapter, where there is no path
-// to give, the entries are in the diagnostic.
-func reportSkippedPages(report *mangaReport, mangaName string, chapter scanner.ChapterEntry, parsed *parser.ParsedChapter, skipped []string, human bool, stderr io.Writer) {
-	if len(skipped) == 0 {
-		return
-	}
-	message := skippedPagesMessage(chapter.Name, skipped)
-	if human {
-		printlnTo(stderr, "warning:", message)
-	}
-	value := issue("warning", "unsupported_page_files", "inspect", message)
-	value.Manga = mangaName
-	value.Volume = copyFloat(parsed.Volume)
-	value.Chapter = copyFloat(&parsed.Chapter)
-	value.Special = parsed.Special
-	value.Path = absolutePath(chapter.Path)
-	if chapter.IsArchive {
-		value.Diagnostic = "entries: " + strings.Join(skipped, ", ")
-	} else {
-		for _, name := range skipped {
-			value.RelatedPaths = append(value.RelatedPaths, absolutePath(filepath.Join(chapter.Path, name)))
-		}
-	}
-	report.addIssue(value)
-}
-
-// reportOversizedPages tells of the entries of one .cbz chapter that were left
-// out because they declare they would expand to more than a page can be (see
-// scanner.tooLarge): one warning for the chapter, naming a few and giving their
-// sizes. The sizes are what makes the warning believable, so they are in the
-// message as well as in the diagnostic.
-func reportOversizedPages(report *mangaReport, mangaName string, chapter scanner.ChapterEntry, parsed *parser.ParsedChapter, oversized []scanner.Oversized, human bool, stderr io.Writer) {
-	if len(oversized) == 0 {
-		return
-	}
-	message := oversizedPagesMessage(chapter.Name, oversized)
-	if human {
-		printlnTo(stderr, "warning:", message)
-	}
-	value := issue("warning", "page_entries_too_large", "inspect", message)
-	value.Manga = mangaName
-	value.Volume = copyFloat(parsed.Volume)
-	value.Chapter = copyFloat(&parsed.Chapter)
-	value.Special = parsed.Special
-	value.Path = absolutePath(chapter.Path)
-	details := make([]string, len(oversized))
-	for i, entry := range oversized {
-		details[i] = fmt.Sprintf("%s (%d bytes from %d)", entry.Name, entry.Size, entry.Compressed)
-	}
-	value.Diagnostic = "entries: " + strings.Join(details, ", ")
-	report.addIssue(value)
 }
 
 func oversizedPagesMessage(chapter string, oversized []scanner.Oversized) string {
