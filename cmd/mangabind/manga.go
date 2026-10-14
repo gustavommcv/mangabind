@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"path/filepath"
 
 	"github.com/gustavommcv/mangabind/internal/cbz"
@@ -21,22 +20,6 @@ type mangaSummary struct {
 	pages   int
 }
 
-// interruption records that the run was stopped by a signal: as an issue in the
-// report, and, for the terminal, as a line of its own. It returns the error
-// that carries the interruption up to runCLIContext, which exits with 130. The
-// caller finalizes the report and returns.
-func interruption(report *mangaReport, mangaName, stage, message, path string, human bool, stderr io.Writer, cause error) error {
-	value := issue("error", "interrupted", stage, message)
-	value.Manga = mangaName
-	value.Path = path
-	value.Recoverable = true
-	report.addIssue(value)
-	if human {
-		printlnTo(stderr, "mangabind:", message)
-	}
-	return fmt.Errorf("interrupted: %w", cause)
-}
-
 // processManga reads the chapters in input and writes its volumes as the options say. It gives the tally
 // of what was written, the report of the manga, and the error that ended the run, if one did.
 func processManga(ctx context.Context, input string, opts runOptions) (mangaSummary, mangaReport, error) {
@@ -45,6 +28,7 @@ func processManga(ctx context.Context, input string, opts runOptions) (mangaSumm
 	var summary mangaSummary
 	mangaName := folderName(input)
 	report := newMangaReport(mangaName, absolutePath(input))
+	r := reporter{manga: mangaName, report: &report, human: human, stderr: stderr}
 	if progress != nil {
 		progress(machineProgress{Stage: "inspect", State: "started", Manga: mangaName})
 	}
@@ -55,12 +39,7 @@ func processManga(ctx context.Context, input string, opts runOptions) (mangaSumm
 		m, err := metadata.Load(mf)
 		if err != nil {
 			wrapped := fmt.Errorf("loading metadata file %s: %w", mf, err)
-			value := issue("error", "metadata_load_failed", "metadata", "Couldn't load the chapter-to-volume metadata file.")
-			value.Manga = mangaName
-			value.Path = absolutePath(mf)
-			value.Recoverable = true
-			value.Diagnostic = wrapped.Error()
-			report.addIssue(value)
+			r.fail("metadata_load_failed", "metadata", "Couldn't load the chapter-to-volume metadata file.", wrapped, atPath(absolutePath(mf)))
 			finalizeMangaReport(&report, summary)
 			return summary, report, wrapped
 		}
@@ -69,49 +48,25 @@ func processManga(ctx context.Context, input string, opts runOptions) (mangaSumm
 			printfTo(stderr, "mangabind: using metadata file %s\n", mf)
 		}
 		if duplicates := m.Duplicates(); len(duplicates) > 0 {
-			message := duplicateChaptersMessage(duplicates)
-			if human {
-				printlnTo(stderr, "warning:", message)
-			}
-			value := issue("warning", "metadata_duplicate_chapter", "metadata", message)
-			value.Manga = mangaName
-			value.Path = absolutePath(mf)
-			report.addIssue(value)
+			r.warn("metadata_duplicate_chapter", "metadata", duplicateChaptersMessage(duplicates), atPath(absolutePath(mf)))
 		}
 	}
 
 	entries, skipped, links, err := scanner.Scan(input)
 	if err != nil {
 		wrapped := fmt.Errorf("scanning %s: %w", input, err)
-		value := issue("error", "input_scan_failed", "inspect", "Couldn't inspect the manga folder.")
-		value.Manga = mangaName
-		value.Path = absolutePath(input)
-		value.Recoverable = true
-		value.Diagnostic = wrapped.Error()
-		report.addIssue(value)
+		r.fail("input_scan_failed", "inspect", "Couldn't inspect the manga folder.", wrapped, atPath(absolutePath(input)))
 		finalizeMangaReport(&report, summary)
 		return summary, report, wrapped
 	}
-	reportLinks(&report, mangaName, links, nil, human, stderr)
+	r.links(links, nil)
 	for _, name := range skipped {
-		message := unsupportedFileMessage(name)
-		if human {
-			printlnTo(stderr, "warning:", message)
-		}
-		value := issue("warning", "unsupported_input_file", "inspect", message)
-		value.Manga = mangaName
-		value.Path = absolutePath(filepath.Join(input, name))
-		report.addIssue(value)
+		r.warn("unsupported_input_file", "inspect", unsupportedFileMessage(name), atPath(absolutePath(filepath.Join(input, name))))
 	}
 	if len(entries) == 0 {
-		if human {
-			// A warning, so -quiet does not hide that nothing was done.
-			printfTo(stderr, "warning: no chapter folders or .cbz files found in %s\n", input)
-		}
-		value := issue("warning", "no_chapters_found", "inspect", "No chapter folders or CBZ files were found.")
-		value.Manga = mangaName
-		value.Path = absolutePath(input)
-		report.addIssue(value)
+		// A warning, so -quiet does not hide that nothing was done.
+		r.sayWarning("no chapter folders or .cbz files found in " + input)
+		r.record("warning", "no_chapters_found", "inspect", "No chapter folders or CBZ files were found.", atPath(absolutePath(input)))
 		finalizeMangaReport(&report, summary)
 		return summary, report, nil
 	}
@@ -122,7 +77,7 @@ func processManga(ctx context.Context, input string, opts runOptions) (mangaSumm
 
 	for _, e := range entries {
 		if cause := ctx.Err(); cause != nil {
-			err := interruption(&report, mangaName, "inspect", "Interrupted while inspecting the chapters; nothing was written.", "", human, stderr, cause)
+			err := r.interrupted("inspect", "Interrupted while inspecting the chapters; nothing was written.", "", cause)
 			finalizeMangaReport(&report, summary)
 			return summary, report, err
 		}
@@ -174,19 +129,11 @@ func processManga(ctx context.Context, input string, opts runOptions) (mangaSumm
 					unit.MetadataAssignment.Status = "confirmed"
 				case *parsed.Volume != metaVol:
 					unit.MetadataAssignment.Status = "ignored_conflict"
-					if human {
-						printfTo(stderr,
-							"warning: chapter %v%s: name says volume %v, metadata file says volume %v - keeping the name\n",
-							parsed.Chapter, parsed.Special, *parsed.Volume, metaVol)
-					}
-					message := fmt.Sprintf("Chapter %v%s keeps volume %v from its name instead of metadata volume %v.", parsed.Chapter, parsed.Special, *parsed.Volume, metaVol)
-					value := issue("warning", "metadata_volume_conflict", "metadata", message)
-					value.Manga = mangaName
-					value.Volume = copyFloat(parsed.Volume)
-					value.Chapter = copyFloat(&parsed.Chapter)
-					value.Special = parsed.Special
-					value.Path = absolutePath(e.Path)
-					report.addIssue(value)
+					r.sayf("warning: chapter %v%s: name says volume %v, metadata file says volume %v - keeping the name",
+						parsed.Chapter, parsed.Special, *parsed.Volume, metaVol)
+					r.record("warning", "metadata_volume_conflict", "metadata",
+						fmt.Sprintf("Chapter %v%s keeps volume %v from its name instead of metadata volume %v.", parsed.Chapter, parsed.Special, *parsed.Volume, metaVol),
+						forChapter(parsed.Volume, parsed.Chapter, parsed.Special), atPath(absolutePath(e.Path)))
 				}
 			}
 		}
@@ -199,24 +146,19 @@ func processManga(ctx context.Context, input string, opts runOptions) (mangaSumm
 		} else {
 			var pageLinks []scanner.Link
 			pages, notPages, pageLinks, err = scanner.Pages(input, e.Path)
-			reportLinks(&report, mangaName, pageLinks, &parsed, human, stderr)
+			r.links(pageLinks, &parsed)
 		}
 		if err != nil {
 			wrapped := fmt.Errorf("listing pages in %s: %w", e.Path, err)
 			unit.Disposition = "failed"
 			report.Units = append(report.Units, unit)
-			value := issue("error", "page_listing_failed", "inspect", fmt.Sprintf("Couldn't list pages for %q.", e.Name))
-			value.Manga = mangaName
-			value.Path = absolutePath(e.Path)
-			value.Recoverable = true
-			value.Diagnostic = wrapped.Error()
-			report.addIssue(value)
+			r.fail("page_listing_failed", "inspect", fmt.Sprintf("Couldn't list pages for %q.", e.Name), wrapped, atPath(absolutePath(e.Path)))
 			finalizeMangaReport(&report, summary)
 			return summary, report, wrapped
 		}
 		unit.PageCount = len(pages)
-		reportSkippedPages(&report, mangaName, e, &parsed, notPages, human, stderr)
-		reportOversizedPages(&report, mangaName, e, &parsed, tooLarge, human, stderr)
+		r.skippedPages(e, &parsed, notPages)
+		r.oversizedPages(e, &parsed, tooLarge)
 		if len(pages) == 0 {
 			unit.Disposition = "empty"
 			report.Units = append(report.Units, unit)
@@ -300,17 +242,12 @@ func processManga(ctx context.Context, input string, opts runOptions) (mangaSumm
 				// made, and the tally is of what is on disk.
 				summary = mangaSummary{}
 				if errors.Is(err, context.Canceled) {
-					err = interruption(&report, mangaName, "write", "Interrupted while writing the combined series; the unfinished file was removed.", absolutePath(outPath), human, stderr, err)
+					err = r.interrupted("write", "Interrupted while writing the combined series; the unfinished file was removed.", absolutePath(outPath), err)
 					finalizeMangaReport(&report, summary)
 					return summary, report, err
 				}
 				wrapped := fmt.Errorf("writing combined series: %w", err)
-				value := issue("error", "combined_write_failed", "write", "Couldn't write the combined series.")
-				value.Manga = mangaName
-				value.Path = absolutePath(outPath)
-				value.Recoverable = true
-				value.Diagnostic = wrapped.Error()
-				report.addIssue(value)
+				r.fail("combined_write_failed", "write", "Couldn't write the combined series.", wrapped, atPath(absolutePath(outPath)))
 				finalizeMangaReport(&report, summary)
 				return summary, report, wrapped
 			}
@@ -335,7 +272,7 @@ func processManga(ctx context.Context, input string, opts runOptions) (mangaSumm
 					Chapters:   chapterNamesForVolume(report.Units, vol.Number),
 				})
 			}
-			err := interruption(&report, mangaName, "write", message, path, human, stderr, cause)
+			err := r.interrupted("write", message, path, cause)
 			finalizeMangaReport(&report, summary)
 			return summary, report, err
 		}
@@ -377,16 +314,8 @@ func processManga(ctx context.Context, input string, opts runOptions) (mangaSumm
 					failedVolumes++
 					completedPages += copied
 					report.Volumes = append(report.Volumes, volume)
-					value := issue("error", "volume_write_failed", "write", fmt.Sprintf("Couldn't write volume %v.", vol.Number))
-					value.Manga = mangaName
-					value.Volume = copyFloat(&vol.Number)
-					value.Path = absolutePath(outPath)
-					value.Recoverable = true
-					value.Diagnostic = wrapped.Error()
-					report.addIssue(value)
-					if human {
-						printlnTo(stderr, "mangabind:", wrapped)
-					}
+					r.fail("volume_write_failed", "write", fmt.Sprintf("Couldn't write volume %v.", vol.Number), wrapped, forVolume(&vol.Number), atPath(absolutePath(outPath)))
+					r.say("mangabind: " + wrapped.Error())
 					continue
 				}
 				completedPages += len(vol.Pages)
@@ -405,9 +334,7 @@ func processManga(ctx context.Context, input string, opts runOptions) (mangaSumm
 		if human {
 			printlnTo(stdout, "mangabind: no volumes produced - see warnings below")
 		}
-		value := issue("warning", "no_volumes_produced", "group", "No volumes could be produced from the inspected chapters.")
-		value.Manga = mangaName
-		report.addIssue(value)
+		r.record("warning", "no_volumes_produced", "group", "No volumes could be produced from the inspected chapters.")
 	}
 
 	// result.Unparsed holds two kinds of chapter: the ones no parser read, and
@@ -424,72 +351,47 @@ func processManga(ctx context.Context, input string, opts runOptions) (mangaSumm
 		}
 	}
 	for _, line := range summarizeNames("could not parse chapter name, skipped", notParsed, "") {
-		if human {
-			printlnTo(stderr, "warning:", line)
-		}
+		r.sayWarning(line)
 	}
 	for _, line := range summarizeNames("chapter has no pages, skipped", noPages, "") {
-		if human {
-			printlnTo(stderr, "warning:", line)
-		}
+		r.sayWarning(line)
 	}
 	for _, name := range result.Unparsed {
-		value := issue("warning", "unparsed_chapter", "parse", fmt.Sprintf("Couldn't parse chapter name %q; it was skipped.", name))
-		value.Manga = mangaName
-		value.Path = absolutePath(filepath.Join(input, name))
 		if unit := findUnit(report.Units, name); unit != nil && unit.Parser.Matched {
-			value.Code = "empty_chapter"
-			value.Stage = "inspect"
-			value.Message = fmt.Sprintf("Chapter %q contains no pages; it was skipped.", name)
-			value.Path = unit.Path
+			r.record("warning", "empty_chapter", "inspect", fmt.Sprintf("Chapter %q contains no pages; it was skipped.", name), atPath(unit.Path))
+			continue
 		}
-		report.addIssue(value)
+		r.record("warning", "unparsed_chapter", "parse", fmt.Sprintf("Couldn't parse chapter name %q; it was skipped.", name), atPath(absolutePath(filepath.Join(input, name))))
 	}
 	unassignedNames := make([]string, len(result.Unassigned))
 	for i, c := range result.Unassigned {
 		unassignedNames[i] = filepath.Base(c.Path)
 	}
 	for _, line := range summarizeNames("chapter has no volume number, skipped", unassignedNames, "see -metadata-file") {
-		if human {
-			printlnTo(stderr, "warning:", line)
-		}
+		r.sayWarning(line)
 	}
 	for _, c := range result.Unassigned {
 		chapter := c.Parsed.Chapter
-		value := issue("warning", "unassigned_chapter", "group", fmt.Sprintf("Chapter %v%s has no volume assignment and was skipped.", chapter, c.Parsed.Special))
-		value.Manga = mangaName
-		value.Chapter = &chapter
-		value.Special = c.Parsed.Special
-		value.Path = absolutePath(c.Path)
-		report.addIssue(value)
+		r.record("warning", "unassigned_chapter", "group",
+			fmt.Sprintf("Chapter %v%s has no volume assignment and was skipped.", chapter, c.Parsed.Special),
+			forChapter(nil, chapter, c.Parsed.Special), atPath(absolutePath(c.Path)))
 	}
 	for _, g := range result.Gaps {
-		if human {
-			printfTo(stderr, "warning: volume %v is missing chapter(s) between %v and %v\n", g.Volume, g.After, g.Before)
-		}
-		value := issue("warning", "chapter_gap", "group", fmt.Sprintf("Volume %v is missing chapters between %v and %v.", g.Volume, g.After, g.Before))
-		value.Manga = mangaName
-		value.Volume = copyFloat(&g.Volume)
-		report.addIssue(value)
+		r.sayf("warning: volume %v is missing chapter(s) between %v and %v", g.Volume, g.After, g.Before)
+		r.record("warning", "chapter_gap", "group",
+			fmt.Sprintf("Volume %v is missing chapters between %v and %v.", g.Volume, g.After, g.Before),
+			forVolume(&g.Volume))
 	}
 	for _, c := range result.Conflicts {
-		if human {
-			printfTo(stderr, "warning: volume %v chapter %v%s has %d conflicting sources, all skipped:\n",
-				c.Volume, c.Chapter, c.Special, len(c.Sources))
-			for _, s := range c.Sources {
-				printfTo(stderr, "  - %q\n", filepath.Base(s))
-			}
+		r.sayf("warning: volume %v chapter %v%s has %d conflicting sources, all skipped:", c.Volume, c.Chapter, c.Special, len(c.Sources))
+		related := make([]string, len(c.Sources))
+		for i, source := range c.Sources {
+			r.sayf("  - %q", filepath.Base(source))
+			related[i] = absolutePath(source)
 		}
-		chapter := c.Chapter
-		value := issue("warning", "chapter_conflict", "group", fmt.Sprintf("Volume %v chapter %v%s has %d conflicting sources; all were skipped.", c.Volume, c.Chapter, c.Special, len(c.Sources)))
-		value.Manga = mangaName
-		value.Volume = copyFloat(&c.Volume)
-		value.Chapter = &chapter
-		value.Special = c.Special
-		for _, source := range c.Sources {
-			value.RelatedPaths = append(value.RelatedPaths, absolutePath(source))
-		}
-		report.addIssue(value)
+		r.record("warning", "chapter_conflict", "group",
+			fmt.Sprintf("Volume %v chapter %v%s has %d conflicting sources; all were skipped.", c.Volume, c.Chapter, c.Special, len(c.Sources)),
+			forChapter(&c.Volume, c.Chapter, c.Special), relatedTo(related))
 	}
 
 	finalizeMangaReport(&report, summary)
