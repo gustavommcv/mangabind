@@ -155,18 +155,21 @@ A chapter folder or CBZ is read by its name. These shapes are recognized:
 | `第1巻 第2話`, `1巻 #3 Title`, `第01巻 - 第12話 始まり` | 2, 3, 12 | 1, 1, 1 |
 | `[ハレム]ナナとカオル　第10話`, `Raw_第1話 始まり`, `(一般コミック) [奥浩哉] いぬやしき 2巻 第3話` | 10, 1, 3 | none, none, 2 |
 | `第09巻`, `(一般コミック) [奥浩哉] いぬやしき 第09巻 (講談社)`, `Test 5巻` (a folder, .cbz or .zip of the pages of a volume) | 1 | 9, 9, 5 |
+| `Series Name v01`, `Love Hina - Volume 01 [Scans]`, `Battle Royale, v03 (2000) [TokyoPop]` (the same, in English) | 1 | 1, 1, 3 |
 
 A chapter number can have a decimal part (`105.5`) and a special suffix (`21x1`). Digits, the decimal point
 and the space may be written full-width, as a Japanese input method types them (`Vol.０１ Ch.００１`,
 `Vol.01　Ch.001`); they are read as the ASCII ones, and a title is kept as it was written.
 
-The Japanese markers (`第N話`, `N話`, `第N巻`, `N巻`) may come after an author or a title. They are looked for
-after a space, a closing bracket or an underscore, and before a `第`, and what comes before them is not kept. A
-marker stuck to a letter (`タイトル12話`) is not one, and neither is anything after a prefix that holds a volume
-(`Vol.01 第1話`).
+The Japanese markers (`第N話`, `N話`, `第N巻`, `N巻`) and an English volume alone may come after an author or a
+title. They are looked for after a space, a closing bracket or an underscore, and before a `第`, and what comes
+before them is not kept. A marker stuck to a letter (`タイトル12話`) is not one, and neither is anything after a
+prefix that holds a volume or a chapter (`Vol.01 第1話`).
 
-A folder, .cbz or .zip named for a volume alone holds the pages of that volume, as a collection scanned from the printed
-books has it, and is bound as volume N with one chapter. Two of one volume are a conflict.
+A folder, .cbz or .zip named for a volume alone, in Japanese (`第N巻`) or in English (`v01`, `Vol.01`, `Volume 1`), holds
+the pages of that volume, as a collection scanned from the printed books has it, and is bound as volume N with one
+chapter. Two of one volume are a conflict. A volume with a title or a chapter after it (`Vol. 01 - The threads of Time`)
+is not one.
 
 A name no convention reads is reported and left out of the books rather than guessed at. A range such as `第1-3話`,
 `第1-3巻` or `第1-3巻 第2話`, the total of a set (`全10巻`), and a volume with a title after it (`第1巻 おまけ`) are
