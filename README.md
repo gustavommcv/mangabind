@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/gustavommcv/mangabind)](https://github.com/gustavommcv/mangabind/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Mangabind groups manga chapters into volumes. Give it a folder of chapter folders or CBZ files,
+Mangabind groups manga chapters into volumes. Give it a folder of chapter folders, CBZ files or ZIP files,
 and it creates one CBZ per volume, or a single archive for the whole series. Pages stay in chapter
 order, in the order Kindle Comic Converter would give them ([ADR 0019](docs/adr/0019-pages-are-put-in-order-as-kcc-does.md)), and their image contents are preserved.
 
@@ -42,12 +42,12 @@ They install an archive only if its SHA-256 matches the release's `checksums.txt
 stop and install nothing. To install a given version, or somewhere else:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.sh | sh -s -- v0.7.2
+curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.sh | sh -s -- v0.8.0
 curl -fsSL https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.sh | MANGABIND_INSTALL_DIR=/opt/bin sh
 ```
 
 ```powershell
-$env:MANGABIND_VERSION = "v0.7.2"; irm https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.ps1 | iex
+$env:MANGABIND_VERSION = "v0.8.0"; irm https://raw.githubusercontent.com/gustavommcv/mangabind/main/install.ps1 | iex
 ```
 
 `MANGABIND_VERSION`, `MANGABIND_INSTALL_DIR` and, for a mirror, `MANGABIND_BASE_URL` work in both;
@@ -78,7 +78,8 @@ mangabind --input "Manga/Example Series"
 ```
 
 Chapter folders and chapter CBZ files can be mixed in the same folder, and a `.zip` of images is read as a CBZ
-is (a CBZ is a ZIP file by another name). EPUB, PDF and RAR (`.rar`, `.cbr`) input are not supported. Without `--output`, the archives go into a sibling folder named
+is (a CBZ is a ZIP file by another name). EPUB, PDF and RAR (`.rar`, `.cbr`) input are not supported. Without
+`--output`, the archives go into a sibling folder named
 `Example Series (mangabind)`. To choose a destination:
 
 ```sh

@@ -8,7 +8,7 @@ service behind it: update by running the install command again (see the
 
 ## What counts
 
-mangabind reads folders and `.cbz` files that people download from places they
+mangabind reads folders, `.cbz` and `.zip` files that people download from places they
 do not control, and writes `.cbz` files. A report is welcome when a manga folder
 or archive made by someone else can make mangabind:
 
