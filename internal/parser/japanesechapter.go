@@ -20,28 +20,42 @@ var hashNumberRe = regexp.MustCompile(widen(
 // JapaneseChapterParser recognizes the conventions of Japanese manga that carry a chapter number and no
 // volume: `第N話`, `N話` and `#N`, each with an optional title (see
 // docs/adr/0021-japanese-chapter-markers.md). A range (`第1-3話`) is not read: it would put one folder in
-// the place of several chapters.
+// the place of several chapters. `第N話` and `N話` may come after a prefix, an author or a title
+// (docs/adr/0023-japanese-markers-after-a-prefix.md); `#N` has to begin the name, since a hash after a
+// title is as often an issue of something else.
 type JapaneseChapterParser struct{}
 
 func (JapaneseChapterParser) Name() string { return "japanese-chapter" }
 
 func (JapaneseChapterParser) Parse(dirName string) (ParsedChapter, bool) {
-	return parseJapaneseChapter(dirName)
+	if parsed, ok := parseJapaneseChapter(dirName); ok {
+		return parsed, true
+	}
+	return afterPrefix(dirName, parseJapaneseCounter)
 }
 
 // parseJapaneseChapter reads one of the shapes above from the whole of s. It is shared with
 // JapaneseVolumeChapterParser, which reads the same chapter after a volume.
 func parseJapaneseChapter(s string) (ParsedChapter, bool) {
-	for _, re := range []*regexp.Regexp{japaneseCounterRe, hashNumberRe} {
-		m := re.FindStringSubmatch(s)
-		if m == nil {
-			continue
-		}
-		ch, err := parseNumber(m[1])
-		if err != nil {
-			return ParsedChapter{}, false
-		}
-		return ParsedChapter{Chapter: ch, Title: m[2]}, true
+	if parsed, ok := parseJapaneseCounter(s); ok {
+		return parsed, true
 	}
-	return ParsedChapter{}, false
+	return parseChapterNumberWith(hashNumberRe, s)
+}
+
+// parseJapaneseCounter reads `第N話` and `N話` from the whole of s.
+func parseJapaneseCounter(s string) (ParsedChapter, bool) {
+	return parseChapterNumberWith(japaneseCounterRe, s)
+}
+
+func parseChapterNumberWith(re *regexp.Regexp, s string) (ParsedChapter, bool) {
+	m := re.FindStringSubmatch(s)
+	if m == nil {
+		return ParsedChapter{}, false
+	}
+	ch, err := parseNumber(m[1])
+	if err != nil {
+		return ParsedChapter{}, false
+	}
+	return ParsedChapter{Chapter: ch, Title: m[2]}, true
 }
