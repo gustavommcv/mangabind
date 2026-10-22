@@ -20,6 +20,7 @@ func DefaultRegistry() *Registry {
 		ChapterOnlyParser{},
 		JapaneseVolumeChapterParser{},
 		JapaneseVolumeParser{},
+		VolumeOnlyParser{},
 		JapaneseChapterParser{},
 		BareNumberParser{},
 	)

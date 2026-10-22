@@ -47,6 +47,8 @@ func TestJapaneseChapterParser(t *testing.T) {
 		{name: "not this convention: an English volume before it", dir: "Vol.01 第1話", ok: false},
 		{name: "not this convention: a short English volume before it", dir: "v01 12話", ok: false},
 		{name: "not this convention: a range of volumes before it", dir: "タイトル 第1-3巻 第2話", ok: false},
+		{name: "not this convention: a range of chapters before it", dir: "第1-3話 第5話", ok: false},
+		{name: "not this convention: an English chapter before it", dir: "Ch.5 第6話", ok: false},
 		{name: "not this convention: a full-width volume before it", dir: "タイトル 第１巻 第２話 ", ok: false},
 		{name: "not this convention: a hash with letters stuck to it", dir: "#12abc", ok: false},
 		{name: "not this convention: a hash alone", dir: "#", ok: false},

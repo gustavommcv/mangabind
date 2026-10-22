@@ -10,9 +10,9 @@ import (
 // either width or in the corner forms Japanese uses.
 const closingBrackets = "]】)）」』］〕》"
 
-// Matches a volume written in a prefix, in the English way (`Vol.01`, `Volume 1`, `v01`) or the Japanese
-// (`第1巻`, `2巻`, `第1-3巻`).
-var volumeInPrefixRe = regexp.MustCompile(widen(`(?i)\b(?:vol(?:ume)?\.?|v)\s*\d|\d\s*巻`))
+// Matches a volume or a chapter written in a prefix, in the English way (`Vol.01`, `Volume 1`, `v01`,
+// `Ch.5`, `Chapter 5`) or the Japanese (`第1巻`, `2巻`, `第1-3巻`, `第5話`).
+var markerInPrefixRe = regexp.MustCompile(widen(`(?i)\b(?:vol(?:ume)?\.?|v|ch(?:apter)?\.?)\s*\d|\d\s*[巻話]`))
 
 // afterPrefix reads a name that may begin with an author or a title before the marker that parse looks
 // for: `[奥浩哉] いぬやしき 第09巻`, `[ハレム]ナナとカオル　第10話`, `Raw_第1話 始まり`. parse is tried on the
@@ -22,13 +22,14 @@ var volumeInPrefixRe = regexp.MustCompile(widen(`(?i)\b(?:vol(?:ume)?\.?|v)\s*\d
 // the leftmost marker is read and what follows it is the title.
 //
 // A marker stuck to the letter before it (`タイトル12話`) is not looked for: a number in a title is not a
-// chapter. Nor is one after a prefix that holds a volume (`Vol.01 第1話`, `第1-3巻 第2話`): the volume would be
-// dropped without a word, where a name that is not read is at least reported.
+// chapter. Nor is one after a prefix that holds a volume or a chapter (`Vol.01 第1話`, `第1-3巻 第2話`,
+// `第1-3話 第5話`): what the prefix says would be dropped without a word, where a name that is not read is at
+// least reported.
 func afterPrefix(name string, parse func(string) (ParsedChapter, bool)) (ParsedChapter, bool) {
 	var prev rune
 	for i, r := range name {
 		if i == 0 || r == '第' || endsPrefix(prev) {
-			if i > 0 && volumeInPrefixRe.MatchString(name[:i]) {
+			if i > 0 && markerInPrefixRe.MatchString(name[:i]) {
 				return ParsedChapter{}, false
 			}
 			if parsed, ok := parse(name[i:]); ok {
