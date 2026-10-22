@@ -1,15 +1,12 @@
 package parser
 
-import (
-	"regexp"
-	"strconv"
-)
+import "regexp"
 
 // Matches a chapter folder that's nothing but a number, e.g. "001", "12.5" -
 // a minimalist convention some scan groups/repackagers use, with no
 // "Chapter"/"Ch" word at all. No volume or title is ever present in a name
 // this bare, so this parser never sets them.
-var bareNumberRe = regexp.MustCompile(`^0*(\d+(?:\.\d+)?)$`)
+var bareNumberRe = regexp.MustCompile(widen(`^[0０]*(\d+(?:[.．]\d+)?)$`))
 
 // BareNumberParser recognizes chapter folders that are just a number, with
 // no other text.
@@ -23,7 +20,7 @@ func (BareNumberParser) Parse(dirName string) (ParsedChapter, bool) {
 		return ParsedChapter{}, false
 	}
 
-	ch, err := strconv.ParseFloat(m[1], 64)
+	ch, err := parseNumber(m[1])
 	if err != nil {
 		return ParsedChapter{}, false
 	}

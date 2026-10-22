@@ -16,6 +16,10 @@ func TestBareNumberParser(t *testing.T) {
 		{name: "not this convention: has text", dir: "Chapter 5", ok: false},
 		{name: "not this convention: has group tag", dir: "005 [Group]", ok: false},
 		{name: "not this convention: empty", dir: "", ok: false},
+		{name: "full-width digits", dir: "００１", ok: true, want: 1},
+		{name: "full-width decimal", dir: "０１２．５", ok: true, want: 12.5},
+		{name: "mixed widths", dir: "0１2.５", ok: true, want: 12.5},
+		{name: "not this convention: a full-width letter", dir: "Ａ１", ok: false},
 	}
 
 	for _, c := range cases {

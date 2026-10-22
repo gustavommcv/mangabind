@@ -1,16 +1,13 @@
 package parser
 
-import (
-	"regexp"
-	"strconv"
-)
+import "regexp"
 
 // Matches "Vol.01 Ch.0001 - Title (en) [Group]" and close variants: an
 // optional special-chapter suffix (x1/y2/z3), and an optional language
 // and/or group tag.
-var volChTitleRe = regexp.MustCompile(
-	`(?i)^Vol\.(\d+(?:\.\d+)?)\s+Ch\.(\d+(?:\.\d+)?)([xyz]\d+)?\s*-\s*(.+?)(?:\s*\((\w[\w-]*)\))?(?:\s*\[(.+?)\])?\s*$`,
-)
+var volChTitleRe = regexp.MustCompile(widen(
+	`(?i)^Vol\.(\d+(?:[.．]\d+)?)\s+Ch\.(\d+(?:[.．]\d+)?)([xyz]\d+)?\s*-\s*(.+?)(?:\s*\((\w[\w-]*)\))?(?:\s*\[(.+?)\])?\s*$`,
+))
 
 // VolChTitleParser recognizes the "Vol.NN Ch.NNNN - Title (lang) [Group]"
 // convention, commonly used by scan releases.
@@ -24,11 +21,11 @@ func (VolChTitleParser) Parse(dirName string) (ParsedChapter, bool) {
 		return ParsedChapter{}, false
 	}
 
-	vol, err := strconv.ParseFloat(m[1], 64)
+	vol, err := parseNumber(m[1])
 	if err != nil {
 		return ParsedChapter{}, false
 	}
-	ch, err := strconv.ParseFloat(m[2], 64)
+	ch, err := parseNumber(m[2])
 	if err != nil {
 		return ParsedChapter{}, false
 	}
@@ -36,7 +33,7 @@ func (VolChTitleParser) Parse(dirName string) (ParsedChapter, bool) {
 	return ParsedChapter{
 		Volume:  &vol,
 		Chapter: ch,
-		Special: m[3],
+		Special: foldWidth(m[3]),
 		Title:   m[4],
 		Lang:    m[5],
 		Group:   m[6],
