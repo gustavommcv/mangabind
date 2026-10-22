@@ -82,3 +82,53 @@ func TestAChapterNamedInTheJapaneseWayWithoutAVolumeIsReportedAsUnassigned(t *te
 		t.Errorf("the chapter is not reported as lacking a volume:\n%s", stderr)
 	}
 }
+
+// A folder that begins with its volume in the Japanese way, `第N巻` or `N巻`, and goes on with a chapter
+// needs no mapping file (docs/adr/0022-japanese-volume-markers.md): the volume is in its name, and a
+// chapter that has only the chapter marker still takes its volume from the mapping.
+func TestAChapterNamedWithItsJapaneseVolumeNeedsNoMapping(t *testing.T) {
+	manga := filepath.Join(t.TempDir(), "Series")
+	for _, name := range []string{"第1巻 第1話 始まり", "第1巻 第2話", "2巻 #3 旅立ち", "第2巻　第4話"} {
+		writeFiles(t, filepath.Join(manga, name), "001.jpg")
+	}
+	out := filepath.Join(t.TempDir(), "out")
+
+	code, _, stderr := runText("-input", manga, "-output", out)
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0\nstderr: %s", code, stderr)
+	}
+	if strings.Contains(stderr, "could not parse chapter name") || strings.Contains(stderr, "no volume number") {
+		t.Errorf("a folder was not read or has no volume:\n%s", stderr)
+	}
+	for volume, want := range map[string][]string{
+		"Series - Vol.01.cbz": {"c001 - 始まり/p0001.jpg", "c002/p0001.jpg"},
+		"Series - Vol.02.cbz": {"c001 - 旅立ち/p0001.jpg", "c002/p0001.jpg"},
+	} {
+		if got := zipEntryNames(t, filepath.Join(out, volume)); !reflect.DeepEqual(got, want) {
+			t.Errorf("%s holds %v, want %v", volume, got, want)
+		}
+	}
+}
+
+// The volume in the name of a chapter wins over the mapping file, as it does for the other conventions.
+func TestTheJapaneseVolumeInANameWinsOverTheMapping(t *testing.T) {
+	manga := filepath.Join(t.TempDir(), "Series")
+	writeFiles(t, filepath.Join(manga, "第2巻 第5話"), "001.jpg")
+	writeFiles(t, filepath.Join(manga, "第6話"), "001.jpg")
+	writeFile(t, filepath.Join(manga, "mangabind.json"),
+		`{"schema_version":1,"volumes":[{"number":"1","chapters":["5-6"]}]}`)
+	out := filepath.Join(t.TempDir(), "out")
+
+	code, _, stderr := runText("-input", manga, "-output", out)
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0\nstderr: %s", code, stderr)
+	}
+	if got, want := zipEntryNames(t, filepath.Join(out, "Series - Vol.02.cbz")), []string{"c001/p0001.jpg"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("volume 2 holds %v, want %v", got, want)
+	}
+	if got, want := zipEntryNames(t, filepath.Join(out, "Series - Vol.01.cbz")), []string{"c001/p0001.jpg"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("volume 1 holds %v, want %v", got, want)
+	}
+}

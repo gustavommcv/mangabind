@@ -26,8 +26,14 @@ type JapaneseChapterParser struct{}
 func (JapaneseChapterParser) Name() string { return "japanese-chapter" }
 
 func (JapaneseChapterParser) Parse(dirName string) (ParsedChapter, bool) {
+	return parseJapaneseChapter(dirName)
+}
+
+// parseJapaneseChapter reads one of the shapes above from the whole of s. It is shared with
+// JapaneseVolumeChapterParser, which reads the same chapter after a volume.
+func parseJapaneseChapter(s string) (ParsedChapter, bool) {
 	for _, re := range []*regexp.Regexp{japaneseCounterRe, hashNumberRe} {
-		m := re.FindStringSubmatch(dirName)
+		m := re.FindStringSubmatch(s)
 		if m == nil {
 			continue
 		}
