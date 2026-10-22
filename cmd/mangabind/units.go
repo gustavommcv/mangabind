@@ -1,7 +1,6 @@
 package main
 
 import (
-	"path/filepath"
 	"sort"
 
 	"github.com/gustavommcv/mangabind/internal/grouper"
@@ -15,9 +14,12 @@ func copyFloat(value *float64) *float64 {
 	return &copy
 }
 
-func findUnit(units []unitReport, name string) *unitReport {
+// findUnit finds the unit of a chapter folder or archive by its path. The name would not do: two chapters in
+// different volume folders may have one, and the name of an archive has no extension.
+func findUnit(units []unitReport, path string) *unitReport {
+	path = absolutePath(path)
 	for i := range units {
-		if units[i].Name == name {
+		if units[i].Path == path {
 			return &units[i]
 		}
 	}
@@ -31,13 +33,13 @@ func markUnitDispositions(units []unitReport, result grouper.Result) {
 		}
 	}
 	for _, chapter := range result.Unassigned {
-		if unit := findUnit(units, filepath.Base(chapter.Path)); unit != nil {
+		if unit := findUnit(units, chapter.Path); unit != nil {
 			unit.Disposition = "unassigned"
 		}
 	}
 	for _, conflict := range result.Conflicts {
 		for _, source := range conflict.Sources {
-			if unit := findUnit(units, filepath.Base(source)); unit != nil {
+			if unit := findUnit(units, source); unit != nil {
 				unit.Disposition = "conflict"
 			}
 		}

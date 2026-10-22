@@ -171,6 +171,11 @@ the pages of that volume, as a collection scanned from the printed books has it,
 chapter. Two of one volume are a conflict. A volume with a title or a chapter after it (`Vol. 01 - The threads of Time`)
 is not one.
 
+A folder named for a volume alone that holds chapter folders or archives instead of pages (`Series/第1巻/第1話`,
+`Series/Volume 2/Chapter 5.cbz`) gives its volume to the chapters in it whose names carry none, and their numbers can
+start again in every volume. A chapter whose name says another volume keeps its own, with a warning. Only one level is
+read; a folder that is not named for a volume (`Specials`) is not opened.
+
 A name no convention reads is reported and left out of the books rather than guessed at. A range such as `第1-3話`,
 `第1-3巻` or `第1-3巻 第2話`, the total of a set (`全10巻`), and a volume with a title after it (`第1巻 おまけ`) are
 among them.

@@ -76,20 +76,27 @@ func (m *mangaRun) scanInput() ([]scanner.ChapterEntry, error) {
 	return entries, nil
 }
 
+// inspection is one chapter folder or archive to read, with the volume of the folder it was found in when it
+// was found in a volume folder.
+type inspection struct {
+	entry        scanner.ChapterEntry
+	folderVolume *float64
+}
+
 // inspectChapters turns each entry into a unit of the report, and into a chapter to group when it can be.
 // unparsed has the names of the entries that cannot: those no parser read, and those that held no pages.
 func (m *mangaRun) inspectChapters(ctx context.Context, entries []scanner.ChapterEntry, metaMap *metadata.Map) (chapters []grouper.Chapter, unparsed []string, err error) {
 	reg := parser.DefaultRegistry()
-	for _, e := range entries {
+	for _, in := range m.expandVolumeFolders(reg, entries) {
 		if cause := ctx.Err(); cause != nil {
 			return nil, nil, m.rep.interrupted("inspect", "Interrupted while inspecting the chapters; nothing was written.", "", cause)
 		}
-		chapter, ok, err := m.inspectEntry(reg, e, metaMap)
+		chapter, ok, err := m.inspectEntry(reg, in.entry, in.folderVolume, metaMap)
 		if err != nil {
 			return nil, nil, err
 		}
 		if !ok {
-			unparsed = append(unparsed, e.Name)
+			unparsed = append(unparsed, listedName(in.entry))
 			continue
 		}
 		chapters = append(chapters, chapter)
@@ -97,10 +104,63 @@ func (m *mangaRun) inspectChapters(ctx context.Context, entries []scanner.Chapte
 	return chapters, unparsed, nil
 }
 
+// expandVolumeFolders puts the chapters found in a volume folder in the place of the folder: a folder named
+// for a volume alone that has no pages of its own and holds chapter folders or archives
+// (docs/adr/0027-volume-folders-hold-chapters.md). Any other entry stays as it is.
+func (m *mangaRun) expandVolumeFolders(reg *parser.Registry, entries []scanner.ChapterEntry) []inspection {
+	var expanded []inspection
+	for _, e := range entries {
+		if volume, inside, ok := m.chaptersOfVolumeFolder(reg, e); ok {
+			for _, chapter := range inside {
+				expanded = append(expanded, inspection{entry: chapter, folderVolume: &volume})
+			}
+			continue
+		}
+		expanded = append(expanded, inspection{entry: e})
+	}
+	return expanded
+}
+
+// chaptersOfVolumeFolder lists the chapters in e when e is a volume folder. A folder with pages is the
+// volume itself (ADR 0024), and one with nothing in it that can be a chapter is read as any other folder, so
+// that it is reported as having no pages.
+func (m *mangaRun) chaptersOfVolumeFolder(reg *parser.Registry, e scanner.ChapterEntry) (volume float64, chapters []scanner.ChapterEntry, ok bool) {
+	if e.IsArchive {
+		return 0, nil, false
+	}
+	parsed, _, matched := reg.Parse(e.Name)
+	if !matched || !parsed.VolumeUnit || parsed.Volume == nil {
+		return 0, nil, false
+	}
+	pages, _, pageLinks, err := scanner.Pages(m.input, e.Path)
+	if err != nil || len(pages) > 0 {
+		return 0, nil, false
+	}
+	inside, skipped, links, err := scanner.ScanIn(m.input, e.Path)
+	if err != nil || len(inside) == 0 {
+		return 0, nil, false
+	}
+	m.rep.links(pageLinks, nil)
+	m.rep.links(links, nil)
+	for _, name := range skipped {
+		m.rep.warn("unsupported_input_file", "inspect", unsupportedFileMessage(name), atPath(absolutePath(filepath.Join(e.Path, name))))
+	}
+	return *parsed.Volume, inside, true
+}
+
+// listedName is how an entry is named in a message: its name, or its path below the manga folder when it is
+// in a volume folder.
+func listedName(e scanner.ChapterEntry) string {
+	if e.Parent == "" {
+		return e.Name
+	}
+	return filepath.Join(e.Parent, e.Name)
+}
+
 // inspectEntry reads one chapter folder or archive: its name, the volume the metadata file gives it, its
 // pages. Its unit goes into the report whatever becomes of it; ok is whether it is a chapter that can be
 // grouped.
-func (m *mangaRun) inspectEntry(reg *parser.Registry, e scanner.ChapterEntry, metaMap *metadata.Map) (chapter grouper.Chapter, ok bool, err error) {
+func (m *mangaRun) inspectEntry(reg *parser.Registry, e scanner.ChapterEntry, folderVolume *float64, metaMap *metadata.Map) (chapter grouper.Chapter, ok bool, err error) {
 	parsed, parserName, matched := reg.Parse(e.Name)
 	unit := unitReport{
 		Name:               e.Name,
@@ -108,9 +168,13 @@ func (m *mangaRun) inspectEntry(reg *parser.Registry, e scanner.ChapterEntry, me
 		Kind:               "folder",
 		Disposition:        "candidate",
 		MetadataAssignment: metadataAssignmentReport{Status: "not_requested"},
+		listed:             listedName(e),
 	}
 	if e.IsArchive {
 		unit.Kind = "cbz"
+	}
+	if e.Parent != "" {
+		unit.VolumeFolder = absolutePath(filepath.Join(m.input, e.Parent))
 	}
 	if !matched {
 		unit.Parser = parserReport{Matched: false}
@@ -130,6 +194,9 @@ func (m *mangaRun) inspectEntry(reg *parser.Registry, e scanner.ChapterEntry, me
 		Title:    parsed.Title,
 		Group:    parsed.Group,
 		Language: parsed.Lang,
+	}
+	if folderVolume != nil {
+		m.takeFolderVolume(&parsed, *folderVolume, e)
 	}
 	m.assignVolume(&unit, &parsed, e, metaMap)
 	unit.EffectiveVolume = copyFloat(parsed.Volume)
@@ -153,6 +220,22 @@ func (m *mangaRun) inspectEntry(reg *parser.Registry, e scanner.ChapterEntry, me
 
 	m.report.Units = append(m.report.Units, unit)
 	return grouper.Chapter{Parsed: parsed, Path: e.Path, Pages: pages, IsArchive: e.IsArchive}, true, nil
+}
+
+// takeFolderVolume gives a chapter found in a volume folder that carries no volume in its name the volume of
+// the folder. A volume in the name wins, as it does over the metadata file, and a name that says another
+// volume than its folder is a warning.
+func (m *mangaRun) takeFolderVolume(parsed *parser.ParsedChapter, folderVolume float64, e scanner.ChapterEntry) {
+	switch {
+	case parsed.Volume == nil:
+		parsed.Volume = &folderVolume
+	case *parsed.Volume != folderVolume:
+		m.rep.sayf("warning: chapter %v%s is in the folder of volume %v, but its name says volume %v - keeping the name",
+			parsed.Chapter, parsed.Special, folderVolume, *parsed.Volume)
+		m.rep.record("warning", "volume_folder_conflict", "inspect",
+			fmt.Sprintf("Chapter %v%s is in the folder of volume %v but its name says volume %v; it keeps the volume from its name.", parsed.Chapter, parsed.Special, folderVolume, *parsed.Volume),
+			forChapter(parsed.Volume, parsed.Chapter, parsed.Special), atPath(absolutePath(e.Path)))
+	}
 }
 
 // assignVolume gives a chapter that carries no volume in its name the volume the metadata file lists it
