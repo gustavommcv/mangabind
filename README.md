@@ -11,7 +11,7 @@ order, in the order Kindle Comic Converter would give them ([ADR 0019](docs/adr/
 Open the result in a CBZ reader, or convert it for your e-reader with
 [mangapress](https://github.com/gustavommcv/mangapress) or
 [Kindle Comic Converter](https://github.com/ciromattia/kcc). For a desktop interface that combines
-grouping and conversion, see [Mangabound](https://github.com/gustavommcv/mangabound).
+grouping and conversion, see [Manga2Ink](https://github.com/gustavommcv/manga2ink).
 
 [Download](https://github.com/gustavommcv/mangabind/releases/latest) ·
 [Get started](#usage) · [Contribute](CONTRIBUTING.md)
@@ -208,7 +208,7 @@ Use `--metadata-file "path/to/mapping.json"` to select a different file. In batc
 `mangabind.json` in each manga folder; one shared `--metadata-file` is not supported.
 
 Mangabind uses the `volumes` field for grouping and does not fetch metadata online. Other fields,
-including `manga` and `source`, may be stored by tools such as Mangabound without affecting
+including `manga` and `source`, may be stored by tools such as Manga2Ink without affecting
 grouping. An empty `volumes` list leaves filename-based grouping unchanged; `schema_version: 1`
 is still required. See [the metadata decision](docs/adr/0010-local-metadata-file.md) for the format.
 

@@ -62,7 +62,7 @@ func TestLoadAndLookup(t *testing.T) {
 	}
 }
 
-// Other tools keep their own facts about a manga in this file (Mangabound
+// Other tools keep their own facts about a manga in this file (Manga2Ink
 // stores manga.author and manga.language, see the README), so keys this
 // package has never heard of must not change how the file is read.
 func TestLoadIgnoresKeysItDoesNotKnow(t *testing.T) {
