@@ -151,11 +151,12 @@ A chapter folder or CBZ is read by its name. These shapes are recognized:
 | `Volume 1 Chapter 5`, `Vol 1 - Ch. 5` | 5 | 1 |
 | `Chapter 5`, `Ch. 5`, `c005`, `Chapter 5 - Title` | 5 | none (see below) |
 | `001`, `12.5` | 1, 12.5 | none (see below) |
+| `第1話`, `第001話 始まり`, `12話`, `#12 - Title` | 1, 1, 12, 12 | none (see below) |
 
 A chapter number can have a decimal part (`105.5`) and a special suffix (`21x1`). Digits, the decimal point
 and the space may be written full-width, as a Japanese input method types them (`Vol.０１ Ch.００１`,
 `Vol.01　Ch.001`); they are read as the ASCII ones, and a title is kept as it was written. A name no
-convention reads is reported and left out of the books rather than guessed at.
+convention reads is reported and left out of the books rather than guessed at; a range such as `第1-3話` is one of them.
 
 ## When chapter names don't carry a volume number
 

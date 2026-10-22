@@ -26,3 +26,4 @@ you need the "why," not just the "what."
 | [0018](0018-an-entry-cannot-expand-to-more-than-a-page-can-be.md) | An archive entry that declares it would expand to more than a page can be is left out with a warning |
 | [0019](0019-pages-are-put-in-order-as-kcc-does.md) | The pages of a chapter are put in the order KCC's natsort gives: stem before extension, digits of every script, case ignored |
 | [0020](0020-full-width-digits-and-spaces-in-chapter-names.md) | The digits, the full stop and the space of a chapter name are read in their full-width forms too; titles are returned as written |
+| [0021](0021-japanese-chapter-markers.md) | A chapter written `第N話`, `N話` or `#N`, with or without a title, is read; a range, a name with no number and a title before the marker are not |
