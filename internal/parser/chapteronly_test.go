@@ -20,6 +20,11 @@ func TestChapterOnlyParser(t *testing.T) {
 		{name: "not this convention: has volume", dir: "Vol.01 Ch.0001 - Title (en) [Group]", ok: false},
 		{name: "not this convention: unrelated", dir: "Cover"},
 		{name: "not this convention: extras folder", dir: "Chainsaw Man - Vol.01", ok: false},
+		{name: "full-width digits", dir: "Chapter　５", ok: true, want: ParsedChapter{Chapter: 5}},
+		{name: "full-width zero padding", dir: "c００５", ok: true, want: ParsedChapter{Chapter: 5}},
+		{name: "full-width decimal", dir: "Ch.１２．５", ok: true, want: ParsedChapter{Chapter: 12.5}},
+		{name: "full-width special suffix", dir: "Chapter 21x１", ok: true, want: ParsedChapter{Chapter: 21, Special: "x1"}},
+		{name: "title after an ideographic space", dir: "Chapter 5\u3000-\u3000Ｔｉｔｌｅ", ok: true, want: ParsedChapter{Chapter: 5, Title: "Ｔｉｔｌｅ"}},
 	}
 
 	for _, c := range cases {

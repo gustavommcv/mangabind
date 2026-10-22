@@ -63,6 +63,43 @@ func TestVolChTitleParser(t *testing.T) {
 			dir:  "Chainsaw Man - Vol.01",
 			ok:   false,
 		},
+		{
+			name: "full-width digits",
+			dir:  "Vol.０１ Ch.００１ - Title (ja) [Group]",
+			ok:   true,
+			want: ParsedChapter{Volume: f(1), Chapter: 1, Title: "Title", Lang: "ja", Group: "Group"},
+		},
+		{
+			name: "full-width decimal",
+			dir:  "Vol.１２ Ch.０１０５．５ - Interlude (ja)",
+			ok:   true,
+			want: ParsedChapter{Volume: f(12), Chapter: 105.5, Title: "Interlude", Lang: "ja"},
+		},
+		{
+			name: "full-width digit in the special suffix",
+			dir:  "Vol.03 Ch.0021x１ - Bonus Story (ja)",
+			ok:   true,
+			want: ParsedChapter{Volume: f(3), Chapter: 21, Special: "x1", Title: "Bonus Story", Lang: "ja"},
+		},
+		{
+			name: "ideographic space between the volume and the chapter",
+			dir:  "Vol.01\u3000Ch.001 - Title",
+			ok:   true,
+			want: ParsedChapter{Volume: f(1), Chapter: 1, Title: "Title"},
+		},
+		{
+			name: "ideographic space around the dash",
+			dir:  "Vol.01 Ch.001\u3000-\u3000Title",
+			ok:   true,
+			want: ParsedChapter{Volume: f(1), Chapter: 1, Title: "Title"},
+		},
+		{
+			name: "the title keeps its full-width characters",
+			dir:  "Vol.01 Ch.001 - Ｔｉｔｌｅ！ ２０２０ (ja) [Ｇｒｏｕｐ]",
+			ok:   true,
+			want: ParsedChapter{Volume: f(1), Chapter: 1, Title: "Ｔｉｔｌｅ！ ２０２０", Lang: "ja", Group: "Ｇｒｏｕｐ"},
+		},
+		{name: "not this convention: the word Vol in full-width letters", dir: "Ｖｏｌ.01 Ch.001 - Title", ok: false},
 	}
 
 	for _, c := range cases {

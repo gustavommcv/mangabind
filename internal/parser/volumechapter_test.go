@@ -63,6 +63,18 @@ func TestVolumeChapterParser(t *testing.T) {
 			dir:  "Cover",
 			ok:   false,
 		},
+		{
+			name: "full-width digits",
+			dir:  "Volume ３ Chapter ０２７",
+			ok:   true,
+			want: ParsedChapter{Volume: f(3), Chapter: 27},
+		},
+		{
+			name: "full-width decimal and ideographic space",
+			dir:  "Vol\u3000１ - Ch\u3000５．５",
+			ok:   true,
+			want: ParsedChapter{Volume: f(1), Chapter: 5.5},
+		},
 	}
 
 	for _, c := range cases {
