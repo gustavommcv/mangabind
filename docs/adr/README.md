@@ -29,3 +29,4 @@ you need the "why," not just the "what."
 | [0021](0021-japanese-chapter-markers.md) | A chapter written `第N話`, `N話` or `#N`, with or without a title, is read; a range, a name with no number and a title before the marker are not |
 | [0022](0022-japanese-volume-markers.md) | A chapter that begins with its volume as `第N巻` or `N巻` is read with that volume; a volume alone, a range of volumes and a title before the marker are not |
 | [0023](0023-japanese-markers-after-a-prefix.md) | `第N話`, `N話` and the volume markers may follow an author or a title, read from the leftmost place a prefix may end; a prefix that holds a volume is refused |
+| [0024](0024-a-volume-named-folder-is-a-volume-of-one-chapter.md) | A folder or .cbz named for a volume alone (`第N巻`, `N巻`) is volume N with one chapter; a range of volumes and a total (`全10巻`) are not read |

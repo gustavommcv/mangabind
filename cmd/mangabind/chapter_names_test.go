@@ -166,3 +166,61 @@ func TestAJapaneseChapterAfterAPrefixIsReadAndOneThatWouldDropAVolumeIsNot(t *te
 		t.Errorf("more than one folder was not read:\n%s", stderr)
 	}
 }
+
+// A folder or a .cbz named for a volume alone, as a collection scanned from the printed books has it, is a
+// volume of one chapter (docs/adr/0024-a-volume-named-folder-is-a-volume-of-one-chapter.md): the books are
+// the volumes of the names, with the pages in order, and two units of one volume conflict as two of one
+// chapter do.
+func TestAFolderNamedForAVolumeIsAVolumeOfOneChapter(t *testing.T) {
+	manga := filepath.Join(t.TempDir(), "Series")
+	writeFiles(t, filepath.Join(manga, "(一般コミック) [奥浩哉] いぬやしき 第01巻"), "001.jpg", "002.jpg")
+	writeFiles(t, filepath.Join(manga, "いぬやしき 第02巻 (講談社)"), "001.jpg")
+	writeCBZ(t, filepath.Join(manga, "いぬやしき 3巻.cbz"), "001.jpg", "002.jpg", "003.jpg")
+	out := filepath.Join(t.TempDir(), "out")
+
+	code, _, stderr := runText("-input", manga, "-output", out)
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0\nstderr: %s", code, stderr)
+	}
+	if strings.Contains(stderr, "could not parse chapter name") {
+		t.Errorf("a folder was not read:\n%s", stderr)
+	}
+	for volume, want := range map[string][]string{
+		"Series - Vol.01.cbz": {"c001/p0001.jpg", "c001/p0002.jpg"},
+		"Series - Vol.02.cbz": {"c001/p0001.jpg"},
+		"Series - Vol.03.cbz": {"c001/p0001.jpg", "c001/p0002.jpg", "c001/p0003.jpg"},
+	} {
+		if got := zipEntryNames(t, filepath.Join(out, volume)); !reflect.DeepEqual(got, want) {
+			t.Errorf("%s holds %v, want %v", volume, got, want)
+		}
+	}
+}
+
+func TestTwoUnitsNamedForTheSameVolumeConflict(t *testing.T) {
+	manga := filepath.Join(t.TempDir(), "Series")
+	writeFiles(t, filepath.Join(manga, "第1巻"), "001.jpg")
+	writeCBZ(t, filepath.Join(manga, "いぬやしき 第1巻.cbz"), "001.jpg")
+	out := filepath.Join(t.TempDir(), "out")
+
+	_, _, stderr := runText("-input", manga, "-output", out, "-dry-run")
+
+	if !strings.Contains(stderr, "volume 1 chapter 1 has 2 conflicting sources") {
+		t.Errorf("the two units of volume 1 are not a conflict:\n%s", stderr)
+	}
+}
+
+// A volume given as a folder of chapters is not a unit of pages. It is reported as a folder with no pages
+// instead of being bound without them.
+func TestAVolumeFolderThatHoldsChapterFoldersIsReportedAsHavingNoPages(t *testing.T) {
+	manga := filepath.Join(t.TempDir(), "Series")
+	writeFiles(t, filepath.Join(manga, "第1巻"), "001.jpg")
+	writeFiles(t, filepath.Join(manga, "第2巻", "第1話"), "001.jpg")
+	out := filepath.Join(t.TempDir(), "out")
+
+	_, _, stderr := runText("-input", manga, "-output", out, "-dry-run")
+
+	if !strings.Contains(stderr, `chapter has no pages, skipped: "第2巻"`) {
+		t.Errorf("the volume folder of chapter folders is not reported:\n%s", stderr)
+	}
+}

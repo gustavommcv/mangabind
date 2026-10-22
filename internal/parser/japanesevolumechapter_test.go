@@ -68,6 +68,7 @@ func TestTheRegistryReadsTheJapaneseVolumeAndChapterNames(t *testing.T) {
 	}{
 		{"第1巻 第2話", "japanese-volume-chapter", true},
 		{"1巻 2話", "japanese-volume-chapter", true},
+		{"(一般コミック) [奥浩哉] いぬやしき 第09巻", "japanese-volume", true},
 		{"第2話", "japanese-chapter", false},
 		{"#7", "japanese-chapter", false},
 	}

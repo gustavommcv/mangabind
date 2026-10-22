@@ -154,6 +154,7 @@ A chapter folder or CBZ is read by its name. These shapes are recognized:
 | `第1話`, `第001話 始まり`, `12話`, `#12 - Title` | 1, 1, 12, 12 | none (see below) |
 | `第1巻 第2話`, `1巻 #3 Title`, `第01巻 - 第12話 始まり` | 2, 3, 12 | 1, 1, 1 |
 | `[ハレム]ナナとカオル　第10話`, `Raw_第1話 始まり`, `(一般コミック) [奥浩哉] いぬやしき 2巻 第3話` | 10, 1, 3 | none, none, 2 |
+| `第09巻`, `(一般コミック) [奥浩哉] いぬやしき 第09巻 (講談社)`, `Test 5巻` (a folder or .cbz of the pages of a volume) | 1 | 9, 9, 5 |
 
 A chapter number can have a decimal part (`105.5`) and a special suffix (`21x1`). Digits, the decimal point
 and the space may be written full-width, as a Japanese input method types them (`Vol.０１ Ch.００１`,
@@ -164,8 +165,12 @@ after a space, a closing bracket or an underscore, and before a `第`, and what 
 marker stuck to a letter (`タイトル12話`) is not one, and neither is anything after a prefix that holds a volume
 (`Vol.01 第1話`).
 
-A name no convention reads is reported and left out of the books rather than guessed at. A range such as `第1-3話`
-or `第1-3巻 第2話`, and a volume alone such as `第1巻`, are among them.
+A folder or .cbz named for a volume alone holds the pages of that volume, as a collection scanned from the printed
+books has it, and is bound as volume N with one chapter. Two of one volume are a conflict.
+
+A name no convention reads is reported and left out of the books rather than guessed at. A range such as `第1-3話`,
+`第1-3巻` or `第1-3巻 第2話`, the total of a set (`全10巻`), and a volume with a title after it (`第1巻 おまけ`) are
+among them.
 
 ## When chapter names don't carry a volume number
 
