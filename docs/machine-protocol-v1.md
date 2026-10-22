@@ -19,7 +19,7 @@ The command exits 0 and writes one JSON object to stdout:
 }
 ```
 
-`tool_version` is the release's own version (`0.7.0` here is an example), and `dev` for an unversioned local build. Mangabound must require an exact supported
+`tool_version` is the release's own version (`0.7.0` here is an example), and `dev` for an unversioned local build. Manga2Ink must require an exact supported
 `protocol_version` and independently verify the pinned release version and executable checksum.
 
 `capabilities` lists optional features a consumer may rely on: `report` is the versioned JSON report
