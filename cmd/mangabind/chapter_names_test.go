@@ -2,6 +2,7 @@ package main
 
 import (
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -36,5 +37,48 @@ func TestAChapterNamedInFullWidthDigitsIsTheSameChapter(t *testing.T) {
 	}
 	if strings.Contains(stderr, "could not be read") || strings.Contains(stderr, "could not parse chapter name") {
 		t.Errorf("a folder was not read:\n%s", stderr)
+	}
+}
+
+// A folder named `第N話`, `N話` or `#N` is a chapter (docs/adr/0021-japanese-chapter-markers.md). These
+// names carry no volume, so the mapping file supplies it, as it does for `Chapter 5`; the title after the
+// number becomes the name of the chapter inside the book, as it was written.
+func TestAChapterNamedInTheJapaneseWayIsGroupedAndKeepsItsTitle(t *testing.T) {
+	manga := filepath.Join(t.TempDir(), "Series")
+	for _, name := range []string{"第1話 始まり", "2話　出会い", "#3"} {
+		writeFiles(t, filepath.Join(manga, name), "001.jpg")
+	}
+	writeFile(t, filepath.Join(manga, "mangabind.json"),
+		`{"schema_version":1,"volumes":[{"number":"1","chapters":["1-3"]}]}`)
+	out := filepath.Join(t.TempDir(), "out")
+
+	code, _, stderr := runText("-input", manga, "-output", out)
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0\nstderr: %s", code, stderr)
+	}
+	if strings.Contains(stderr, "could not parse chapter name") {
+		t.Errorf("a folder was not read:\n%s", stderr)
+	}
+	want := []string{"c001 - 始まり/p0001.jpg", "c002 - 出会い/p0001.jpg", "c003/p0001.jpg"}
+	if got := zipEntryNames(t, filepath.Join(out, "Series - Vol.01.cbz")); !reflect.DeepEqual(got, want) {
+		t.Errorf("the volume holds %v, want %v", got, want)
+	}
+}
+
+// Without a mapping the same names are chapters with no volume, so they are reported as such and not as
+// names that could not be read.
+func TestAChapterNamedInTheJapaneseWayWithoutAVolumeIsReportedAsUnassigned(t *testing.T) {
+	manga := filepath.Join(t.TempDir(), "Series")
+	writeFiles(t, filepath.Join(manga, "第1話"), "001.jpg")
+	out := filepath.Join(t.TempDir(), "out")
+
+	_, _, stderr := runText("-input", manga, "-output", out, "-dry-run")
+
+	if strings.Contains(stderr, "could not parse chapter name") {
+		t.Errorf("the folder was not read:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, `chapter has no volume number, skipped: "第1話"`) {
+		t.Errorf("the chapter is not reported as lacking a volume:\n%s", stderr)
 	}
 }
