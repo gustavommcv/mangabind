@@ -1,7 +1,7 @@
 // Package scanner lists the chapter units and page files that make up a
 // manga folder, without touching their content. A "chapter unit" is
-// either a folder of loose image files or a .cbz file - both
-// are treated as equally valid chapter sources.
+// either a folder of loose image files or an archive of them, a .cbz or a
+// .zip - all are treated as equally valid chapter sources.
 package scanner
 
 import (
@@ -18,11 +18,12 @@ import (
 )
 
 // ChapterEntry is one chapter unit found directly under a manga's root
-// directory: either a folder of images, or a .cbz archive.
+// directory: either a folder of images, or a .cbz or .zip archive of them (a
+// .cbz is a .zip by another name; see docs/adr/0025-zip-archives-are-chapters-like-cbz.md).
 type ChapterEntry struct {
-	Name      string // name to parse for volume/chapter info - a .cbz's extension is stripped
-	Path      string // absolute path to the folder or .cbz file
-	IsArchive bool   // true when Path is a .cbz file rather than a folder
+	Name      string // name to parse for volume/chapter info - an archive's extension is stripped
+	Path      string // absolute path to the folder or archive file
+	IsArchive bool   // true when Path is a .cbz or .zip file rather than a folder
 }
 
 // Link is a symbolic link the scanner did not follow, with the reason. A link
@@ -78,14 +79,14 @@ func Library(root string) (manga []string, links []Link, err error) {
 }
 
 // Scan lists the immediate contents of root, classifying each entry as a
-// chapter folder, a .cbz chapter archive, or - for anything else other than
+// chapter folder, a .cbz or .zip chapter archive, or - for anything else other than
 // a few known junk files (.DS_Store, Thumbs.db, desktop.ini) - an
 // unsupported file reported in skipped rather than silently dropped. This
 // is what lets the caller warn about unsupported .epub/.pdf document
 // formats instead of producing no output at all. Results are sorted in
 // natural order for stable, deterministic output; this is not yet
 // volume/chapter order, which is the grouper package's job once names have
-// been parsed. A .cbz that is a link is listed only when it leads to a file
+// been parsed. An archive that is a link is listed only when it leads to a file
 // inside root; one that does not is returned in links instead.
 func Scan(root string) (entries []ChapterEntry, skipped []string, links []Link, err error) {
 	rawEntries, err := os.ReadDir(root)
@@ -101,7 +102,7 @@ func Scan(root string) (entries []ChapterEntry, skipped []string, links []Link, 
 			continue
 		}
 
-		if strings.EqualFold(filepath.Ext(name), ".cbz") {
+		if isArchive(name) {
 			if why := whyLinkIsUnsafe(root, root, e); why != "" {
 				links = append(links, Link{Path: filepath.Join(root, name), Why: why})
 				continue
@@ -125,6 +126,16 @@ func Scan(root string) (entries []ChapterEntry, skipped []string, links []Link, 
 		return naturalsort.Less(entries[i].Name, entries[j].Name)
 	})
 	return entries, skipped, links, nil
+}
+
+// isArchive reports whether name is an archive of images, by its extension: a .cbz is a .zip file that
+// comic readers know by that name, so both are read the same way.
+func isArchive(name string) bool {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".cbz", ".zip":
+		return true
+	}
+	return false
 }
 
 func isIgnorableJunk(name string) bool {
@@ -312,7 +323,7 @@ func IsPageEntry(f *zip.File) bool {
 	return !f.FileInfo().IsDir() && classifyPage(f.Name) == pageImage && !tooLarge(f)
 }
 
-// PagesInArchive lists the page entries inside a .cbz chapter archive, in
+// PagesInArchive lists the page entries inside a .cbz or .zip chapter archive, in
 // natural order. Directory entries within the archive are ignored. As in
 // Pages, only images are pages: the other entries are named in skipped, apart
 // from the same junk (macOS adds a whole __MACOSX folder of it to the archives

@@ -144,3 +144,31 @@ func TestPagesInArchive(t *testing.T) {
 		t.Fatalf("PagesInArchive() = %v, want %v", pages, want)
 	}
 }
+
+// A .zip is read as a .cbz is (docs/adr/0025-zip-archives-are-chapters-like-cbz.md), whatever the case of
+// its extension; the other archives are named in skipped, as any file that is not a chapter.
+func TestScanReadsAZipAsAnArchive(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"第1巻.zip", "第2巻.ZIP", "Vol.03 Ch.001.cbz", "第4巻.rar", "第5巻.cbr", "notes.txt"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	entries, skipped, _, err := Scan(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := map[string]bool{} // name -> IsArchive
+	for _, e := range entries {
+		got[e.Name] = e.IsArchive
+	}
+	want := map[string]bool{"第1巻": true, "第2巻": true, "Vol.03 Ch.001": true}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("entries = %v, want %v", got, want)
+	}
+	if wantSkipped := []string{"notes.txt", "第4巻.rar", "第5巻.cbr"}; !reflect.DeepEqual(skipped, wantSkipped) {
+		t.Errorf("skipped = %v, want %v", skipped, wantSkipped)
+	}
+}

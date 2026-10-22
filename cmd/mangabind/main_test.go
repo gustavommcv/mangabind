@@ -414,8 +414,10 @@ func TestUnsupportedFileMessage(t *testing.T) {
 		name string
 		want string
 	}{
-		{"chapter 5.epub", `found "chapter 5.epub" - .epub chapters aren't supported (only folders of images or .cbz), skipped`},
-		{"chapter 5.pdf", `found "chapter 5.pdf" - .pdf chapters aren't supported (only folders of images or .cbz), skipped`},
+		{"chapter 5.epub", `found "chapter 5.epub" - .epub chapters aren't supported (only folders of images, .cbz or .zip), skipped`},
+		{"chapter 5.pdf", `found "chapter 5.pdf" - .pdf chapters aren't supported (only folders of images, .cbz or .zip), skipped`},
+		{"第4巻.rar", `found "第4巻.rar" - .rar archives aren't supported (only folders of images, .cbz or .zip; extract it or save it as .zip), skipped`},
+		{"第4巻.CBR", `found "第4巻.CBR" - .rar archives aren't supported (only folders of images, .cbz or .zip; extract it or save it as .zip), skipped`},
 		{"notes.txt", `found unrecognized file, skipped: "notes.txt"`},
 	}
 	for _, c := range cases {
