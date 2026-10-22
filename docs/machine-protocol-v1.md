@@ -108,6 +108,10 @@ Every discovered chapter folder or chapter CBZ has one unit record:
 - `metadata_assignment.status`: `"not_applicable"`, `"not_requested"`, `"not_found"`, `"applied"`,
   `"confirmed"`, or `"ignored_conflict"`; `metadata_volume` is present when metadata matched
 - `effective_volume`: the assignment used for grouping, when one exists
+- `volume_folder`: the absolute path of the volume folder the unit was found in, when it was found in one
+  (`<manga>/第1巻/第2話`); a folder named for a volume alone holds the chapters in it, and a chapter whose name
+  carries no volume takes the folder's as its `effective_volume`
+  ([ADR 0027](adr/0027-volume-folders-hold-chapters.md))
 - `page_count`: the images in the unit. A page is an image by its name (`.jpg`, `.jpeg`, `.png`,
   `.gif`, `.webp`, `.bmp`, `.avif`, `.jxl`, `.tif`, `.tiff`); see
   [ADR 0016](adr/0016-a-page-is-an-image.md)
@@ -164,6 +168,7 @@ Version 1 codes are:
 | `page_listing_failed` | `inspect` | A unit's pages could not be listed |
 | `empty_chapter` | `inspect` | A recognized unit contains no pages |
 | `unparsed_chapter` | `parse` | No registered parser recognized a unit name |
+| `volume_folder_conflict` | `inspect` | A chapter in the folder of one volume has a name that says another; the name wins. `volume` is the one from the name, `path` the chapter |
 | `metadata_load_failed` | `metadata` | The mapping file could not be read or validated: a volume number that is not a number from 0 to 100000, a chapter range that is too large, or more than 100,000 chapters listed |
 | `metadata_duplicate_chapter` | `metadata` | The mapping file lists chapters under more than one volume; the last listing applies. One issue per file: `path` is the file, and the message names the first of them |
 | `metadata_volume_conflict` | `metadata` | Filename and metadata volumes disagree; filename wins |

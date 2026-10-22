@@ -209,18 +209,3 @@ func TestTwoUnitsNamedForTheSameVolumeConflict(t *testing.T) {
 		t.Errorf("the two units of volume 1 are not a conflict:\n%s", stderr)
 	}
 }
-
-// A volume given as a folder of chapters is not a unit of pages. It is reported as a folder with no pages
-// instead of being bound without them.
-func TestAVolumeFolderThatHoldsChapterFoldersIsReportedAsHavingNoPages(t *testing.T) {
-	manga := filepath.Join(t.TempDir(), "Series")
-	writeFiles(t, filepath.Join(manga, "第1巻"), "001.jpg")
-	writeFiles(t, filepath.Join(manga, "第2巻", "第1話"), "001.jpg")
-	out := filepath.Join(t.TempDir(), "out")
-
-	_, _, stderr := runText("-input", manga, "-output", out, "-dry-run")
-
-	if !strings.Contains(stderr, `chapter has no pages, skipped: "第2巻"`) {
-		t.Errorf("the volume folder of chapter folders is not reported:\n%s", stderr)
-	}
-}

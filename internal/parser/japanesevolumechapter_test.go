@@ -50,6 +50,9 @@ func TestJapaneseVolumeChapterParser(t *testing.T) {
 			if got.Volume == nil || *got.Volume != c.volume {
 				t.Fatalf("Parse(%q) Volume = %v, want %v", c.dir, got.Volume, c.volume)
 			}
+			if got.VolumeUnit {
+				t.Fatalf("Parse(%q) VolumeUnit = true, want false: a chapter is not a volume", c.dir)
+			}
 			if got.Chapter != c.chapter || got.Title != c.title || got.Special != "" || got.Group != "" || got.Lang != "" {
 				t.Fatalf("Parse(%q) = %+v, want chapter %v, title %q", c.dir, got, c.chapter, c.title)
 			}

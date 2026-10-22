@@ -112,6 +112,11 @@ type unitReport struct {
 	MetadataAssignment metadataAssignmentReport `json:"metadata_assignment"`
 	EffectiveVolume    *float64                 `json:"effective_volume,omitempty"`
 	Disposition        string                   `json:"disposition"`
+	// VolumeFolder is the folder of a volume that the unit was found in, when it was found in one.
+	VolumeFolder string `json:"volume_folder,omitempty"`
+	// listed is how the unit is named in a message: its name, or its path below the manga folder when it is in
+	// a volume folder, where two units may have one name. It is not part of the report.
+	listed string
 }
 
 type parserReport struct {

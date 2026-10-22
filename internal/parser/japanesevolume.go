@@ -30,5 +30,5 @@ func parseJapaneseVolumeAlone(s string) (ParsedChapter, bool) {
 	if err != nil {
 		return ParsedChapter{}, false
 	}
-	return ParsedChapter{Volume: &vol, Chapter: 1}, true
+	return ParsedChapter{Volume: &vol, Chapter: 1, VolumeUnit: true}, true
 }

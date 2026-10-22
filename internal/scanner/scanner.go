@@ -24,6 +24,9 @@ type ChapterEntry struct {
 	Name      string // name to parse for volume/chapter info - an archive's extension is stripped
 	Path      string // absolute path to the folder or archive file
 	IsArchive bool   // true when Path is a .cbz or .zip file rather than a folder
+	// Parent is the path, below the manga folder, of the folder the entry was found in: empty for an entry
+	// directly in the manga folder, the name of a volume folder for a chapter inside one (see ScanIn).
+	Parent string
 }
 
 // Link is a symbolic link the scanner did not follow, with the reason. A link
@@ -89,28 +92,43 @@ func Library(root string) (manga []string, links []Link, err error) {
 // been parsed. An archive that is a link is listed only when it leads to a file
 // inside root; one that does not is returned in links instead.
 func Scan(root string) (entries []ChapterEntry, skipped []string, links []Link, err error) {
-	rawEntries, err := os.ReadDir(root)
+	return ScanIn(root, root)
+}
+
+// ScanIn lists the immediate contents of dir, a folder inside the manga folder root, as Scan lists those of
+// root itself: it is how the chapters of a volume folder are found. Links are judged against root, the
+// folder that was chosen, not against dir, and the entries come back with Parent set to dir's path below
+// root (see docs/adr/0027-volume-folders-hold-chapters.md).
+func ScanIn(root, dir string) (entries []ChapterEntry, skipped []string, links []Link, err error) {
+	rawEntries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, nil, nil, err
+	}
+	parent := ""
+	if dir != root {
+		if rel, relErr := filepath.Rel(root, dir); relErr == nil {
+			parent = rel
+		}
 	}
 
 	for _, e := range rawEntries {
 		name := e.Name()
 
 		if e.IsDir() {
-			entries = append(entries, ChapterEntry{Name: name, Path: filepath.Join(root, name)})
+			entries = append(entries, ChapterEntry{Name: name, Path: filepath.Join(dir, name), Parent: parent})
 			continue
 		}
 
 		if isArchive(name) {
-			if why := whyLinkIsUnsafe(root, root, e); why != "" {
-				links = append(links, Link{Path: filepath.Join(root, name), Why: why})
+			if why := whyLinkIsUnsafe(root, dir, e); why != "" {
+				links = append(links, Link{Path: filepath.Join(dir, name), Why: why})
 				continue
 			}
 			entries = append(entries, ChapterEntry{
 				Name:      strings.TrimSuffix(name, filepath.Ext(name)),
-				Path:      filepath.Join(root, name),
+				Path:      filepath.Join(dir, name),
 				IsArchive: true,
+				Parent:    parent,
 			})
 			continue
 		}

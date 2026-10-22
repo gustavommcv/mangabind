@@ -172,3 +172,45 @@ func TestScanReadsAZipAsAnArchive(t *testing.T) {
 		t.Errorf("skipped = %v, want %v", skipped, wantSkipped)
 	}
 }
+
+// ScanIn lists a folder inside the manga folder as Scan lists the manga folder, and says where each entry
+// was found (docs/adr/0027-volume-folders-hold-chapters.md).
+func TestScanInListsTheChaptersOfAVolumeFolderWithTheirParent(t *testing.T) {
+	root := t.TempDir()
+	volume := filepath.Join(root, "第1巻")
+	for _, dir := range []string{filepath.Join(volume, "第1話"), filepath.Join(volume, "第2話")} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"第3話.zip", "notes.txt"} {
+		if err := os.WriteFile(filepath.Join(volume, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	entries, skipped, _, err := ScanIn(root, volume)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []ChapterEntry{
+		{Name: "第1話", Path: filepath.Join(volume, "第1話"), Parent: "第1巻"},
+		{Name: "第2話", Path: filepath.Join(volume, "第2話"), Parent: "第1巻"},
+		{Name: "第3話", Path: filepath.Join(volume, "第3話.zip"), IsArchive: true, Parent: "第1巻"},
+	}
+	if !reflect.DeepEqual(entries, want) {
+		t.Errorf("entries = %+v, want %+v", entries, want)
+	}
+	if !reflect.DeepEqual(skipped, []string{"notes.txt"}) {
+		t.Errorf("skipped = %v, want [notes.txt]", skipped)
+	}
+
+	top, _, _, err := Scan(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(top) != 1 || top[0].Parent != "" {
+		t.Errorf("Scan(root) = %+v, want the one volume folder with no parent", top)
+	}
+}

@@ -16,6 +16,9 @@ func TestVolumeOnlyParser(t *testing.T) {
 		{name: "upper case", dir: "VOLUME 12", ok: true, volume: 12},
 		{name: "decimal", dir: "v03.5", ok: true, volume: 3.5},
 		{name: "full-width digits", dir: "Vol.０１", ok: true, volume: 1},
+		{name: "the folder mangadex-downloader makes for a volume", dir: "Volume. 1", ok: true, volume: 1},
+		{name: "the name of a volume whose number has a dot", dir: "Volume. 12", ok: true, volume: 12},
+		{name: "not this convention: the folder of chapters with no volume", dir: "No Volume", ok: false},
 		{name: "Kavita's documented name", dir: "Series Name v01", ok: true, volume: 1},
 		{name: "after a title and a dash", dir: "Love Hina - Volume 01 [Scans]", ok: true, volume: 1},
 		{name: "after a comma, with a year and a publisher", dir: "Battle Royale, v01 (2000) [TokyoPop] [Manga-Sketchbook]", ok: true, volume: 1},
@@ -45,6 +48,9 @@ func TestVolumeOnlyParser(t *testing.T) {
 			}
 			if got.Volume == nil || *got.Volume != c.volume {
 				t.Fatalf("Parse(%q) Volume = %v, want %v", c.dir, got.Volume, c.volume)
+			}
+			if !got.VolumeUnit {
+				t.Fatalf("Parse(%q) VolumeUnit = false, want true", c.dir)
 			}
 			if got.Chapter != 1 || got.Title != "" || got.Special != "" || got.Group != "" || got.Lang != "" {
 				t.Fatalf("Parse(%q) = %+v, want chapter 1 and nothing else", c.dir, got)

@@ -13,6 +13,10 @@ type ParsedChapter struct {
 	Title   string
 	Group   string // scanlation group/source, informational only
 	Lang    string // language tag, informational only; never drives grouping
+	// VolumeUnit is true when the name is a volume and nothing else, so that what it names holds the pages of
+	// that volume (a volume with one chapter, numbered 1) or, when it is a folder with chapter folders in
+	// it, those chapters (docs/adr/0027-volume-folders-hold-chapters.md).
+	VolumeUnit bool
 }
 
 // ChapterNameParser recognizes one chapter-folder naming convention. Parse
