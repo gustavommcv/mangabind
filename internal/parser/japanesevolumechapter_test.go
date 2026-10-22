@@ -29,7 +29,11 @@ func TestJapaneseVolumeChapterParser(t *testing.T) {
 		{name: "not this convention: a range of chapters", dir: "第1巻 第1-3話", ok: false},
 		{name: "not this convention: a chapter alone", dir: "第2話", ok: false},
 		{name: "not this convention: the chapter first", dir: "第2話 第1巻", ok: false},
-		{name: "not this convention: a title before the volume", dir: "[作者] タイトル 第1巻 第2話", ok: false},
+		{name: "after an author and a title", dir: "[作者] タイトル 第1巻 第2話", ok: true, volume: 1, chapter: 2},
+		{name: "after a real name, N巻 without 第", dir: "(一般コミック) [奥浩哉] いぬやしき 2巻 第3話 出会い", ok: true, volume: 2, chapter: 3, title: "出会い"},
+		{name: "after a scanlator and an underscore", dir: "Raw_第3巻 #25", ok: true, volume: 3, chapter: 25},
+		{name: "not this convention: N巻 stuck to the title", dir: "タイトル2巻 第3話", ok: false},
+		{name: "not this convention: a volume alone after a title", dir: "(一般コミック) [奥浩哉] いぬやしき 第09巻", ok: false},
 		{name: "not this convention: the English convention", dir: "Vol.01 Ch.002", ok: false},
 		{name: "not this convention: empty", dir: "", ok: false},
 	}

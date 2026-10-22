@@ -12,14 +12,20 @@ var japaneseVolumeRe = regexp.MustCompile(widen(
 
 // JapaneseVolumeChapterParser recognizes a chapter whose name begins with its volume in the Japanese way,
 // `第N巻` or `N巻`, followed by a chapter as JapaneseChapterParser reads it (see
-// docs/adr/0022-japanese-volume-markers.md). A volume with nothing after it is not a chapter and is not
-// read.
+// docs/adr/0022-japanese-volume-markers.md), after a prefix if there is one
+// (docs/adr/0023-japanese-markers-after-a-prefix.md). A volume with nothing after it is not a chapter and
+// is not read.
 type JapaneseVolumeChapterParser struct{}
 
 func (JapaneseVolumeChapterParser) Name() string { return "japanese-volume-chapter" }
 
 func (JapaneseVolumeChapterParser) Parse(dirName string) (ParsedChapter, bool) {
-	m := japaneseVolumeRe.FindStringSubmatch(dirName)
+	return afterPrefix(dirName, parseJapaneseVolumeChapter)
+}
+
+// parseJapaneseVolumeChapter reads a volume and a chapter from the whole of s.
+func parseJapaneseVolumeChapter(s string) (ParsedChapter, bool) {
+	m := japaneseVolumeRe.FindStringSubmatch(s)
 	if m == nil {
 		return ParsedChapter{}, false
 	}

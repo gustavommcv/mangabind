@@ -132,3 +132,37 @@ func TestTheJapaneseVolumeInANameWinsOverTheMapping(t *testing.T) {
 		t.Errorf("volume 1 holds %v, want %v", got, want)
 	}
 }
+
+// A chapter whose name begins with an author or a title is read from the marker on
+// (docs/adr/0023-japanese-markers-after-a-prefix.md). One that begins with a volume the marker would
+// leave out is not read, and is reported, rather than put in a book without its volume.
+func TestAJapaneseChapterAfterAPrefixIsReadAndOneThatWouldDropAVolumeIsNot(t *testing.T) {
+	manga := filepath.Join(t.TempDir(), "Series")
+	for _, name := range []string{
+		"[ハレム]ナナとカオル　第1話 始まり",
+		"Raw_第2話",
+		"[ハレム]ナナとカオル 第3話",
+		"Vol.07 第4話",
+	} {
+		writeFiles(t, filepath.Join(manga, name), "001.jpg")
+	}
+	writeFile(t, filepath.Join(manga, "mangabind.json"),
+		`{"schema_version":1,"volumes":[{"number":"1","chapters":["1-4"]}]}`)
+	out := filepath.Join(t.TempDir(), "out")
+
+	code, _, stderr := runText("-input", manga, "-output", out)
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0\nstderr: %s", code, stderr)
+	}
+	want := []string{"c001 - 始まり/p0001.jpg", "c002/p0001.jpg", "c003/p0001.jpg"}
+	if got := zipEntryNames(t, filepath.Join(out, "Series - Vol.01.cbz")); !reflect.DeepEqual(got, want) {
+		t.Errorf("the volume holds %v, want %v", got, want)
+	}
+	if !strings.Contains(stderr, `could not parse chapter name, skipped: "Vol.07 第4話"`) {
+		t.Errorf("the chapter that would lose its volume is not reported:\n%s", stderr)
+	}
+	if strings.Count(stderr, "could not parse chapter name") != 1 {
+		t.Errorf("more than one folder was not read:\n%s", stderr)
+	}
+}
