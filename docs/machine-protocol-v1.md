@@ -102,7 +102,7 @@ Every manga report contains its name, absolute input and optional metadata paths
 
 Every discovered chapter folder or chapter CBZ has one unit record:
 
-- `kind`: `"folder"` or `"cbz"`
+- `kind`: `"folder"` or `"cbz"` (an archive of images: a `.cbz` or a `.zip`, which are the same format)
 - `parser`: whether a parser matched, its stable parser name, and the original parsed volume,
   chapter, special suffix, title, group, and language when present
 - `metadata_assignment.status`: `"not_applicable"`, `"not_requested"`, `"not_found"`, `"applied"`,

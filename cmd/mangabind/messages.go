@@ -118,9 +118,11 @@ func skippedPagesMessage(chapter string, skipped []string) string {
 func unsupportedFileMessage(name string) string {
 	switch strings.ToLower(filepath.Ext(name)) {
 	case ".epub":
-		return fmt.Sprintf("found %q - .epub chapters aren't supported (only folders of images or .cbz), skipped", name)
+		return fmt.Sprintf("found %q - .epub chapters aren't supported (only folders of images, .cbz or .zip), skipped", name)
 	case ".pdf":
-		return fmt.Sprintf("found %q - .pdf chapters aren't supported (only folders of images or .cbz), skipped", name)
+		return fmt.Sprintf("found %q - .pdf chapters aren't supported (only folders of images, .cbz or .zip), skipped", name)
+	case ".rar", ".cbr":
+		return fmt.Sprintf("found %q - .rar archives aren't supported (only folders of images, .cbz or .zip; extract it or save it as .zip), skipped", name)
 	default:
 		return fmt.Sprintf("found unrecognized file, skipped: %q", name)
 	}
