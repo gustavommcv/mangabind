@@ -9,7 +9,7 @@ and it creates one CBZ per volume, or a single archive for the whole series. Pag
 order, in the order Kindle Comic Converter would give them ([ADR 0019](docs/adr/0019-pages-are-put-in-order-as-kcc-does.md)), and their image contents are preserved.
 
 Open the result in a CBZ reader, or convert it for your e-reader with
-[mangapress](https://github.com/gustavommcv/mangapress) or
+[mangaprep](https://github.com/gustavommcv/mangaprep) or
 [Kindle Comic Converter](https://github.com/ciromattia/kcc). For a desktop interface that combines
 grouping and conversion, see [Manga2Ink](https://github.com/gustavommcv/manga2ink).
 
@@ -137,7 +137,7 @@ mangabind --input "Manga/Example Series" --combine
 ```
 
 To convert that structure into an EPUB with volumes and chapters in its table of contents, use
-mangapress's `--nested-toc` option.
+mangaprep's `--nested-toc` option.
 
 `-i`, `-o`, and `-n` are shortcuts for `--input`, `--output`, and `--dry-run`.
 Use `--quiet` (`-q`) to show only warnings and errors, or `mangabind --help` for all options.
