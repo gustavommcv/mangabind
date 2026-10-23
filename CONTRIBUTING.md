@@ -68,7 +68,7 @@ See [ADR 0003](docs/adr/0003-pluggable-chapter-parsing.md) for the parser design
 ## Project scope
 
 Mangabind groups chapters and writes CBZ archives. Image conversion belongs in a separate tool,
-such as mangapress or KCC. Covers follow page ordering; there is no cover-detection step.
+such as mangaprep or KCC. Covers follow page ordering; there is no cover-detection step.
 
 Volume assignments can come from names or a local metadata file. Tools that retrieve online
 metadata can write that file; Mangabind itself stays offline. See the decisions on
