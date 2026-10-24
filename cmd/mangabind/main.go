@@ -77,7 +77,7 @@ func runCLIContext(ctx context.Context, args []string, stdout, stderr io.Writer)
 			ProtocolVersion: machineProtocolVersion,
 			Tool:            "mangabind",
 			ToolVersion:     version,
-			Capabilities:    []string{"report", "progress-json"},
+			Capabilities:    []string{"report", "progress-json", "chapter-versions", "chapter-labels", "unit-first-page"},
 		}); err != nil {
 			printlnTo(stderr, "mangabind: writing protocol information:", err)
 			return 1
@@ -156,6 +156,7 @@ func runCLIContext(ctx context.Context, args []string, stdout, stderr io.Writer)
 		quiet:        cfg.quiet,
 		dryRun:       cfg.dryRun,
 		combine:      cfg.combine,
+		labels:       cfg.labels,
 		human:        true,
 		stdout:       stdout,
 		stderr:       stderr,

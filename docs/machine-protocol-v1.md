@@ -15,7 +15,7 @@ The command exits 0 and writes one JSON object to stdout:
   "protocol_version": 1,
   "tool": "mangabind",
   "tool_version": "0.7.0",
-  "capabilities": ["report", "progress-json"]
+  "capabilities": ["report", "progress-json", "chapter-versions", "chapter-labels", "unit-first-page"]
 }
 ```
 
@@ -25,7 +25,14 @@ The command exits 0 and writes one JSON object to stdout:
 `capabilities` lists optional features a consumer may rely on: `report` is the versioned JSON report
 this document describes, and `progress-json` is the opt-in progress side channel described below.
 Releases before 0.6.0 advertise only `report`; a consumer should check for the capability, not
-compare release versions.
+compare release versions. The others are:
+
+- `chapter-versions`: the mapping file's `chapter_versions` choices, the unit disposition `not_chosen`, the
+  manga report's `chapter_versions` and the `chapter_choice_unmatched` issue
+  ([ADR 0028](adr/0028-the-versions-of-a-chapter-are-chosen-in-the-mapping-file.md))
+- `chapter-labels`: the `-chapter-labels` flag and the volume's `chapter_entries`
+  ([ADR 0029](adr/0029-chapters-can-be-labelled-by-their-number.md))
+- `unit-first-page`: the unit's `first_page`
 
 ## Exit codes
 
@@ -115,11 +122,32 @@ Every discovered chapter folder or chapter CBZ has one unit record:
 - `page_count`: the images in the unit. A page is an image by its name (`.jpg`, `.jpeg`, `.png`,
   `.gif`, `.webp`, `.bmp`, `.avif`, `.jxl`, `.tif`, `.tiff`); see
   [ADR 0016](adr/0016-a-page-is-an-image.md)
-- `disposition`: `"included"`, `"unassigned"`, `"unparsed"`, `"empty"`, `"conflict"`, or `"failed"`
+- `first_page`: the first image of the unit in reading order, as the name of a file in a folder or of an entry of an
+  archive; absent for a unit with no pages
+- `disposition`: `"included"`, `"unassigned"`, `"unparsed"`, `"empty"`, `"conflict"`, `"not_chosen"`, or `"failed"`.
+  `"not_chosen"` is a unit that claims a chapter several units claim, which the mapping file's `chapter_versions` chose
+  against ([ADR 0028](adr/0028-the-versions-of-a-chapter-are-chosen-in-the-mapping-file.md))
 
 The parser's original `volume` is never rewritten when metadata fills a missing assignment;
 `effective_volume` records the result. This distinction lets a consumer show exactly where an
 assignment came from.
+
+### Chapter versions
+
+The manga report's `chapter_versions` has one entry for every chapter that more than one unit claims, whether or not
+a volume would make them a conflict (an empty list when there is none):
+
+- `chapter` and `special`: the chapter number and its special suffix (`x1`), when there is one
+- `volume`: the effective volume of the units, when they have one. The units of a group share their chapter, special
+  suffix and effective volume
+- `units`: the absolute paths of the units in the group, in the order they were found, chosen or not
+- `resolution`: `"chosen"` when the mapping file chose among them (`chapter_versions` in the file), and
+  `"unresolved"` when it did not
+
+The mapping file chooses with `"chapter_versions": [{"chapter": "6", "use": ["Ch.0006 (en) [A].cbz"]}]`: one unit is
+the choice of a version, several are all kept as alternatives, none leaves the chapter out. A unit is named by its
+path below the manga folder, written with `/`. A chapter that one unit claims is not decided by a choice. See
+[ADR 0028](adr/0028-the-versions-of-a-chapter-are-chosen-in-the-mapping-file.md).
 
 ### Volumes
 
@@ -132,6 +160,12 @@ and `chapters`, but `output_path` points at that one combined file and `written`
 each individual entry - the write succeeded or failed as a whole, reflected by whether
 `combined_output_path`'s file actually exists and by the absence of a `combined_write_failed`
 issue. See [ADR 0012](adr/0012-combine-series-into-one-volume.md).
+
+A volume's `chapter_entries` lists its chapters in reading order, each with the `label` the chapter has in the book
+(the name of its directory in the volume, which the converter shows in the table of contents), the absolute `path`
+of the unit it came from, and its `page_count`. The label is `c003 - Title` by default, and `Ch.6 - Title` with
+`-chapter-labels number`; a chapter kept as one of several alternatives has ` (version 1 of 2)` after its title. See
+[ADR 0029](adr/0029-chapters-can-be-labelled-by-their-number.md).
 
 ### Issues
 
@@ -169,9 +203,10 @@ Version 1 codes are:
 | `empty_chapter` | `inspect` | A recognized unit contains no pages |
 | `unparsed_chapter` | `parse` | No registered parser recognized a unit name |
 | `volume_folder_conflict` | `inspect` | A chapter in the folder of one volume has a name that says another; the name wins. `volume` is the one from the name, `path` the chapter |
-| `metadata_load_failed` | `metadata` | The mapping file could not be read or validated: a volume number that is not a number from 0 to 100000, a chapter range that is too large, or more than 100,000 chapters listed |
+| `metadata_load_failed` | `metadata` | The mapping file could not be read or validated: a volume number that is not a number from 0 to 100000, a chapter range that is too large, more than 100,000 chapters listed, or a `chapter_versions` choice that is not about one chapter or is given twice for a chapter |
 | `metadata_duplicate_chapter` | `metadata` | The mapping file lists chapters under more than one volume; the last listing applies. One issue per file: `path` is the file, and the message names the first of them |
 | `metadata_volume_conflict` | `metadata` | Filename and metadata volumes disagree; filename wins |
+| `chapter_choice_unmatched` | `metadata` | The mapping file chooses files for a chapter, and none of them is a unit that claims it; the choice was not used and the units are in conflict. `chapter` and `volume` say which, and `related_paths` lists the units that claim it |
 | `unassigned_chapter` | `group` | A parsed chapter has no volume assignment |
 | `chapter_gap` | `group` | Whole-number chapters are missing inside a volume |
 | `chapter_conflict` | `group` | Multiple sources claim the same volume/chapter key |

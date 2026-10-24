@@ -47,11 +47,16 @@ func (m *mangaRun) write(ctx context.Context, result grouper.Result) (failedVolu
 // plannedVolume is the entry of a volume in the report before it is written: where it goes, how many pages
 // it has and which chapters are in it.
 func (m *mangaRun) plannedVolume(vol grouper.Volume, outPath string) volumeReport {
+	entries := make([]chapterEntryReport, len(vol.Chapters))
+	for i, chapter := range vol.Chapters {
+		entries[i] = chapterEntryReport{Label: chapter.Dir, Path: absolutePath(chapter.Path), PageCount: chapter.PageCount}
+	}
 	return volumeReport{
-		Number:     vol.Number,
-		OutputPath: absolutePath(outPath),
-		PageCount:  len(vol.Pages),
-		Chapters:   chapterNamesForVolume(m.report.Units, vol.Number),
+		Number:         vol.Number,
+		OutputPath:     absolutePath(outPath),
+		PageCount:      len(vol.Pages),
+		Chapters:       chapterNamesForVolume(m.report.Units, vol.Number),
+		ChapterEntries: entries,
 	}
 }
 

@@ -133,3 +133,74 @@ func TestLoadNonexistentFile(t *testing.T) {
 		t.Fatal("expected an error loading a nonexistent file")
 	}
 }
+
+func TestLoadReadsTheChoicesOfVersions(t *testing.T) {
+	path := writeFile(t, `{
+		"schema_version": 1,
+		"volumes": [],
+		"chapter_versions": [
+			{"chapter": "6", "use": ["Ch.6 [A].cbz"]},
+			{"chapter": "21x1", "use": ["Vol 2\\Ch.21x1 [A].cbz", "Vol 2/Ch.21x1 [B].cbz"]},
+			{"chapter": "8.5", "use": []}
+		]
+	}`)
+
+	m, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		chapter float64
+		special string
+		want    []string
+		listed  bool
+	}{
+		{6, "", []string{"Ch.6 [A].cbz"}, true},
+		{21, "x1", []string{"Vol 2/Ch.21x1 [A].cbz", "Vol 2/Ch.21x1 [B].cbz"}, true},
+		{8.5, "", []string{}, true},
+		{7, "", nil, false},
+		{21, "", nil, false},
+	}
+	for _, c := range cases {
+		got, listed := m.Choice(c.chapter, c.special)
+		if listed != c.listed || len(got) != len(c.want) {
+			t.Errorf("Choice(%v, %q) = %v, %v; want %v, %v", c.chapter, c.special, got, listed, c.want, c.listed)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("Choice(%v, %q)[%d] = %q, want %q", c.chapter, c.special, i, got[i], c.want[i])
+			}
+		}
+	}
+}
+
+func TestLoadRefusesAChoiceThatIsNotAboutOneChapter(t *testing.T) {
+	for _, chapter := range []string{"5-7", "", "six", "5x"} {
+		path := writeFile(t, `{"schema_version": 1, "volumes": [], "chapter_versions": [{"chapter": "`+chapter+`", "use": []}]}`)
+		if _, err := Load(path); err == nil {
+			t.Errorf("a choice about chapter %q was accepted", chapter)
+		}
+	}
+}
+
+func TestLoadRefusesTwoChoicesAboutOneChapter(t *testing.T) {
+	path := writeFile(t, `{"schema_version": 1, "volumes": [], "chapter_versions": [
+		{"chapter": "6", "use": ["a.cbz"]}, {"chapter": "6", "use": ["b.cbz"]}]}`)
+
+	if _, err := Load(path); err == nil {
+		t.Error("two choices about one chapter were accepted")
+	}
+}
+
+func TestAFileWithNoChoicesHasNone(t *testing.T) {
+	m, err := Load(writeFile(t, `{"schema_version": 1, "volumes": [{"number": "1", "chapters": ["1"]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, listed := m.Choice(1, ""); listed {
+		t.Error("a file with no choices has one")
+	}
+}
