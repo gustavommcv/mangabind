@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gustavommcv/mangabind/internal/naturalsort"
 	"github.com/gustavommcv/mangabind/internal/parser"
 )
 
@@ -27,6 +28,42 @@ type Chapter struct {
 	// which case Pages are entry names to read from inside that archive
 	// (see scanner.PagesInArchive) rather than filenames on disk.
 	IsArchive bool
+
+	// Version is set when the chapter is one of several kept as alternatives
+	// of the same chapter number: the files that claim a chapter are normally
+	// a Conflict, and are not one only when someone chose to keep them all
+	// (docs/adr/0028-the-versions-of-a-chapter-are-chosen-in-the-mapping-file.md).
+	Version *Version
+}
+
+// Version is the place of a chapter among the alternatives kept of one chapter
+// number: Index counts from 1, and Count is how many were kept.
+type Version struct {
+	Index, Count int
+}
+
+// LabelStyle is how the directory of a chapter inside its volume is named, and
+// so what a book's table of contents calls the chapter, since the converter
+// takes the label from the directory.
+type LabelStyle int
+
+const (
+	// LabelsByPosition names a chapter by its place in the volume, "c003 -
+	// Title": it is the order, not the chapter, that the name carries.
+	LabelsByPosition LabelStyle = iota
+
+	// LabelsByNumber names a chapter by its own number, "Ch.6 - Title", so that
+	// the chapter is the one in the table of contents whatever came before it in
+	// the volume (docs/adr/0029-chapters-can-be-labelled-by-their-number.md).
+	LabelsByNumber
+)
+
+// VolumeChapter is what a volume holds of one chapter: the directory it was
+// given inside the volume, where it came from, and how many pages it has.
+type VolumeChapter struct {
+	Dir       string
+	Path      string
+	PageCount int
 }
 
 // Page is one page ready to be written into a volume's .cbz: where to read
@@ -46,6 +83,10 @@ type Page struct {
 type Volume struct {
 	Number float64
 	Pages  []Page
+
+	// Chapters are the chapters of the volume in reading order, each with the
+	// directory its pages have inside the volume.
+	Chapters []VolumeChapter
 }
 
 // Gap flags a missing whole-number chapter between two chapters that are
@@ -111,6 +152,11 @@ type chapterKey struct {
 // chapter title - a flat archive produces a single, useless TOC entry for
 // the whole volume. See docs/adr/0006-chapter-directories-for-kcc-toc.md.
 func Group(chapters []Chapter, unparsed []string) Result {
+	return GroupLabeled(chapters, unparsed, LabelsByPosition)
+}
+
+// GroupLabeled is Group with a say in how the chapter directories are named.
+func GroupLabeled(chapters []Chapter, unparsed []string, style LabelStyle) Result {
 	byVolume := map[float64][]Chapter{}
 	var unassigned []Chapter
 
@@ -146,12 +192,19 @@ func Group(chapters []Chapter, unparsed []string) Result {
 			if ci.Chapter != cj.Chapter {
 				return ci.Chapter < cj.Chapter
 			}
-			return ci.Special < cj.Special
+			if ci.Special != cj.Special {
+				return ci.Special < cj.Special
+			}
+			// Only the alternatives of one chapter share its number.
+			return versionIndex(resolved[i]) < versionIndex(resolved[j])
 		})
 
+		dirs := chapterDirNames(resolved, style)
 		var pages []Page
+		var held []VolumeChapter
 		for ci, ch := range resolved {
-			chapterDir := chapterDirName(ci+1, ch.Parsed.Title)
+			chapterDir := dirs[ci]
+			held = append(held, VolumeChapter{Dir: chapterDir, Path: ch.Path, PageCount: len(ch.Pages)})
 			for pi, name := range ch.Pages {
 				archiveName := fmt.Sprintf("%s/p%04d%s", chapterDir, pi+1, filepath.Ext(name))
 				if ch.IsArchive {
@@ -161,7 +214,7 @@ func Group(chapters []Chapter, unparsed []string) Result {
 				}
 			}
 		}
-		volumes = append(volumes, Volume{Number: v, Pages: pages})
+		volumes = append(volumes, Volume{Number: v, Pages: pages, Chapters: held})
 	}
 
 	return Result{
@@ -258,6 +311,70 @@ func chapterDirName(position int, title string) string {
 	return base + " - " + title
 }
 
+// chapterDirNames names the directories of the chapters of one volume, which
+// are in reading order. The converter reads the directories in natural order of
+// their names, and a label by number is only as good as that order is the
+// reading order: a chapter 21x1 comes before a 21.5 in a volume, and
+// "Ch.21.5" is before "Ch.21x1" by name. A volume whose labels by number would
+// be read in another order is labelled by position and number together, which
+// is always in order.
+func chapterDirNames(chapters []Chapter, style LabelStyle) []string {
+	dirs := make([]string, len(chapters))
+	if style == LabelsByNumber {
+		for i, ch := range chapters {
+			dirs[i] = numberedChapterDirName(ch)
+		}
+		if inReadingOrder(dirs) {
+			return dirs
+		}
+		for i := range dirs {
+			dirs[i] = fmt.Sprintf("c%03d - %s", i+1, dirs[i])
+		}
+		return dirs
+	}
+	for i, ch := range chapters {
+		dirs[i] = chapterDirName(i+1, ch.Parsed.Title) + versionSuffix(ch)
+	}
+	return dirs
+}
+
+// numberedChapterDirName is "Ch.6 - Title" for a chapter, with its place
+// among the alternatives after the title when it is one of several.
+func numberedChapterDirName(ch Chapter) string {
+	name := "Ch." + strconv.FormatFloat(ch.Parsed.Chapter, 'f', -1, 64) + ch.Parsed.Special
+	if title := sanitizeFolderName(ch.Parsed.Title); title != "" {
+		name += " - " + title
+	}
+	return name + versionSuffix(ch)
+}
+
+// versionSuffix tells the alternatives of one chapter apart, as the title does
+// not: they are the same chapter.
+func versionSuffix(ch Chapter) string {
+	if ch.Version == nil {
+		return ""
+	}
+	return fmt.Sprintf(" (version %d of %d)", ch.Version.Index, ch.Version.Count)
+}
+
+func versionIndex(ch Chapter) int {
+	if ch.Version == nil {
+		return 0
+	}
+	return ch.Version.Index
+}
+
+// inReadingOrder reports whether the directories, taken with a page in each,
+// are in the order the converter will read them in.
+func inReadingOrder(dirs []string) bool {
+	for i := 1; i < len(dirs); i++ {
+		if naturalsort.LessPath(dirs[i]+"/p0001.jpg", dirs[i-1]+"/p0001.jpg") {
+			return false
+		}
+	}
+	return true
+}
+
 // sanitizeFolderName strips characters that would break a single-level
 // directory name inside the archive - a slash in a chapter title would
 // otherwise silently create unintended nested directories.
@@ -265,6 +382,18 @@ func sanitizeFolderName(s string) string {
 	s = strings.ReplaceAll(s, "/", "-")
 	s = strings.ReplaceAll(s, "\\", "-")
 	return strings.TrimSpace(s)
+}
+
+// keptAsAlternatives is whether the chapters that claim one key were all chosen
+// to be kept (see Chapter.Version), which is the one way they are not a
+// conflict.
+func keptAsAlternatives(group []Chapter) bool {
+	for _, c := range group {
+		if c.Version == nil {
+			return false
+		}
+	}
+	return true
 }
 
 // resolveConflicts splits chs into chapters with a unique (Chapter, Special)
@@ -279,14 +408,14 @@ func resolveConflicts(volume float64, chs []Chapter) (resolved []Chapter, confli
 
 	for _, c := range chs {
 		k := chapterKey{c.Parsed.Chapter, c.Parsed.Special}
-		if len(byKey[k]) == 1 {
+		if len(byKey[k]) == 1 || keptAsAlternatives(byKey[k]) {
 			resolved = append(resolved, c)
 		}
 	}
 
 	var keys []chapterKey
 	for k, group := range byKey {
-		if len(group) > 1 {
+		if len(group) > 1 && !keptAsAlternatives(group) {
 			keys = append(keys, k)
 		}
 	}

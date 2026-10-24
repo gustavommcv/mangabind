@@ -1,6 +1,10 @@
 package main
 
-import "io"
+import (
+	"io"
+
+	"github.com/gustavommcv/mangabind/internal/grouper"
+)
 
 // runOptions is what a run was asked to do and where it says things, carried from the command line down to
 // each manga. The context travels apart from it, as the first argument.
@@ -12,6 +16,9 @@ type runOptions struct {
 	metadataFile string
 
 	quiet, dryRun, combine bool
+
+	// labels is how the chapters are named inside a volume, and so in the table of contents of its book.
+	labels grouper.LabelStyle
 
 	// human is whether the run says things for people: the lines on stdout and stderr. A run that answers
 	// with a JSON report keeps them off, and its writers are io.Discard.

@@ -7,6 +7,8 @@ import (
 	"io"
 	"strconv"
 	"strings"
+
+	"github.com/gustavommcv/mangabind/internal/grouper"
 )
 
 // cliConfig is the parsed result of the command line, kept separate from
@@ -15,6 +17,9 @@ type cliConfig struct {
 	input, output, metadataFile                       string
 	batch, quiet, dryRun, json, combine, progressJSON bool
 	showVersion, showProtocol                         bool
+
+	// labels is how the chapters are named inside a volume, from -chapter-labels.
+	labels grouper.LabelStyle
 }
 
 // flagRequested reports whether the boolean flag name is switched on anywhere
@@ -76,6 +81,7 @@ func parseFlags(args []string) (cliConfig, *flag.FlagSet, error) {
 	fs.BoolVar(&cfg.json, "json", false, "emit one versioned JSON report on stdout instead of human-readable output")
 	fs.BoolVar(&cfg.progressJSON, "progress-json", false, "with -json, emit newline-delimited progress events on stderr while keeping the final report on stdout")
 	fs.BoolVar(&cfg.combine, "combine", false, "write the whole manga as one .cbz instead of one per volume, still reporting each volume's own chapters")
+	chapterLabels := fs.String("chapter-labels", "position", "how a chapter is named inside its volume, and so in the book's table of contents: position (c003 - Title) or number (Ch.6 - Title)")
 	fs.BoolVar(&cfg.showProtocol, "protocol-version", false, "print machine-protocol compatibility information as JSON and exit")
 	fs.BoolVar(&cfg.showVersion, "version", false, "print the version and exit")
 	fs.Usage = func() {}
@@ -89,6 +95,14 @@ func parseFlags(args []string) (cliConfig, *flag.FlagSet, error) {
 	// run follow.
 	if fs.NArg() > 0 {
 		return cfg, fs, &unexpectedArgumentError{args: fs.Args()}
+	}
+	switch *chapterLabels {
+	case "position":
+		cfg.labels = grouper.LabelsByPosition
+	case "number":
+		cfg.labels = grouper.LabelsByNumber
+	default:
+		return cfg, fs, fmt.Errorf("-chapter-labels %q is not one of position or number", *chapterLabels)
 	}
 	return cfg, fs, nil
 }

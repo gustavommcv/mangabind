@@ -12,6 +12,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 // File is the on-disk schema of a metadata file.
@@ -19,7 +20,21 @@ type File struct {
 	SchemaVersion int           `json:"schema_version"`
 	Manga         *Manga        `json:"manga,omitempty"`
 	Volumes       []VolumeEntry `json:"volumes"`
-	Source        *Source       `json:"source,omitempty"`
+	// ChapterVersions says which of the files that claim one chapter are to be used; see VersionChoice.
+	ChapterVersions []VersionChoice `json:"chapter_versions,omitempty"`
+	Source          *Source         `json:"source,omitempty"`
+}
+
+// VersionChoice is the answer to a chapter that more than one file claims, typically the same chapter
+// downloaded from two scan groups (docs/adr/0028-the-versions-of-a-chapter-are-chosen-in-the-mapping-file.md).
+// Chapter is one chapter token ("6", "6.5", "21x1"; a range is not one chapter), and Use the files to use,
+// as their paths below the manga folder, written with "/" ("Ch.0006 (en).cbz", "Vol 2/Ch.0006 (en).cbz").
+// One file is the choice of a version, several are all kept as alternatives of the chapter, and none leaves
+// the chapter out. A choice about a chapter that no more than one file claims has nothing to decide, and
+// is not used.
+type VersionChoice struct {
+	Chapter string   `json:"chapter"`
+	Use     []string `json:"use"`
 }
 
 // Manga is purely informational - never read by the matching logic.
@@ -67,6 +82,7 @@ type chapterKey struct {
 type Map struct {
 	byChapter  map[chapterKey]float64
 	duplicates []Duplicate
+	choices    map[chapterKey][]string
 }
 
 // Duplicate is a chapter the file lists under two different volumes. The last
@@ -127,7 +143,46 @@ func Load(path string) (*Map, error) {
 			}
 		}
 	}
+	if err := m.loadChoices(f.ChapterVersions); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
 	return m, nil
+}
+
+// loadChoices reads the choices of versions. A chapter may have one choice: two would say two things about
+// the same files, and which is meant is not for a program to guess.
+func (m *Map) loadChoices(entries []VersionChoice) error {
+	for _, entry := range entries {
+		match := chapterTokenRe.FindStringSubmatch(entry.Chapter)
+		if match == nil {
+			return fmt.Errorf("chapter_versions: invalid chapter %q: a choice is about one chapter, such as \"6\", \"6.5\" or \"21x1\"", entry.Chapter)
+		}
+		number, err := strconv.ParseFloat(match[1], 64)
+		if err != nil {
+			return fmt.Errorf("chapter_versions: invalid chapter %q: %w", entry.Chapter, err)
+		}
+		key := chapterKey{number, match[2]}
+		if m.choices == nil {
+			m.choices = map[chapterKey][]string{}
+		}
+		if _, listed := m.choices[key]; listed {
+			return fmt.Errorf("chapter_versions: chapter %q has more than one choice", entry.Chapter)
+		}
+		use := make([]string, len(entry.Use))
+		for i, file := range entry.Use {
+			use[i] = strings.ReplaceAll(file, "\\", "/")
+		}
+		m.choices[key] = use
+	}
+	return nil
+}
+
+// Choice returns the files the mapping file says to use for the chapter, as their paths below the manga
+// folder written with "/". listed is false when the file has no choice for it; a choice that lists no file
+// is the choice to use none.
+func (m *Map) Choice(chapter float64, special string) (use []string, listed bool) {
+	use, listed = m.choices[chapterKey{chapter, special}]
+	return use, listed
 }
 
 // Lookup returns the volume number for the given chapter/special
