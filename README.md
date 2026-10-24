@@ -151,6 +151,7 @@ A chapter folder or CBZ is read by its name. These shapes are recognized:
 | `Vol.01 Ch.0001 - Title (en) [Group]` | 1 | 1 |
 | `Volume 1 Chapter 5`, `Vol 1 - Ch. 5` | 5 | 1 |
 | `Chapter 5`, `Ch. 5`, `c005`, `Chapter 5 - Title` | 5 | none (see below) |
+| `Ch.0001 (en)`, `Ch.0011 - Title (en) [Group]` (a chapter with no volume, as the MangaDex downloaders name it) | 1, 11 | none (see below) |
 | `001`, `12.5` | 1, 12.5 | none (see below) |
 | `第1話`, `第001話 始まり`, `12話`, `#12 - Title` | 1, 1, 12, 12 | none (see below) |
 | `第1巻 第2話`, `1巻 #3 Title`, `第01巻 - 第12話 始まり` | 2, 3, 12 | 1, 1, 1 |
@@ -161,6 +162,10 @@ A chapter folder or CBZ is read by its name. These shapes are recognized:
 A chapter number can have a decimal part (`105.5`) and a special suffix (`21x1`). Digits, the decimal point
 and the space may be written full-width, as a Japanese input method types them (`Vol.０１ Ch.００１`,
 `Vol.01　Ch.001`); they are read as the ASCII ones, and a title is kept as it was written.
+
+A language at the end of a name (`(en)`, `(pt-br)`: two or three letters, and a region after a hyphen) and a group
+after it (`[Group]`) are read and told in the report, and never decide how chapters are grouped. A bracket that
+holds anything else (`(Part 2)`, `(Final)`) is part of the title.
 
 The Japanese markers (`第N話`, `N話`, `第N巻`, `N巻`) and an English volume alone may come after an author or a
 title. They are looked for after a space, a closing bracket or an underscore, and before a `第`, and what comes
