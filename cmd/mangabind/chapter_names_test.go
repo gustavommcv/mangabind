@@ -209,3 +209,86 @@ func TestTwoUnitsNamedForTheSameVolumeConflict(t *testing.T) {
 		t.Errorf("the two units of volume 1 are not a conflict:\n%s", stderr)
 	}
 }
+
+// A chapter named as the MangaDex downloaders name one that has no volume (`Ch.0001 (en)`, `Ch.0006 - Title
+// (en)`, with a group after it) is a chapter like `Chapter 1`: it is read, the language and the group it
+// carries are told, and, with no volume in its name, it waits for the mapping file to give it one.
+func TestAChapterNamedWithALanguageAndNoVolumeIsRead(t *testing.T) {
+	manga := filepath.Join(t.TempDir(), "Series")
+	for _, name := range []string{
+		"Ch.0001 (en)",
+		"Ch.0006 (en)",
+		"Ch.0006 - A Perfect Day for Koala (en)",
+		"Ch.0015 - Have you seen Ubuntu Touch!？ (en) [prussian blue hedgehog scans]",
+	} {
+		writeArchive(t, filepath.Join(manga, name+".cbz"), "ComicInfo.xml", "001.jpg", "002.jpg")
+	}
+	out := filepath.Join(t.TempDir(), "out")
+
+	report, stderr, code := runMachineForTest(t, "-input", manga, "-output", out, "-dry-run", "-json")
+
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0\nstderr: %s", code, stderr)
+	}
+	type read struct {
+		chapter            float64
+		title, lang, group string
+	}
+	want := map[string]read{
+		"Ch.0001 (en)":                           {chapter: 1, lang: "en"},
+		"Ch.0006 (en)":                           {chapter: 6, lang: "en"},
+		"Ch.0006 - A Perfect Day for Koala (en)": {chapter: 6, title: "A Perfect Day for Koala", lang: "en"},
+		"Ch.0015 - Have you seen Ubuntu Touch!？ (en) [prussian blue hedgehog scans]": {
+			chapter: 15, title: "Have you seen Ubuntu Touch!？", lang: "en", group: "prussian blue hedgehog scans",
+		},
+	}
+	units := report.Manga[0].Units
+	if len(units) != len(want) {
+		t.Fatalf("the report has %d units, want %d", len(units), len(want))
+	}
+	for _, unit := range units {
+		expected, known := want[unit.Name]
+		if !known {
+			t.Errorf("unexpected unit %q", unit.Name)
+			continue
+		}
+		if !unit.Parser.Matched || unit.Parser.Name != "chapter-only" || unit.Parser.Chapter == nil {
+			t.Errorf("%q was not read as a chapter: %+v", unit.Name, unit.Parser)
+			continue
+		}
+		got := read{*unit.Parser.Chapter, unit.Parser.Title, unit.Parser.Language, unit.Parser.Group}
+		if got != expected {
+			t.Errorf("%q was read as %+v, want %+v", unit.Name, got, expected)
+		}
+		if unit.Disposition != "unassigned" {
+			t.Errorf("%q has disposition %q, want unassigned: its name says no volume", unit.Name, unit.Disposition)
+		}
+	}
+	for _, issue := range report.Manga[0].Issues {
+		if issue.Code == "unparsed_chapter" {
+			t.Errorf("a name was not read: %+v", issue)
+		}
+	}
+}
+
+// With the mapping file giving them a volume, the chapters of that kind are bound, in the order of their
+// numbers, and a title is the name of its chapter inside the book as it is for any other.
+func TestChaptersNamedWithALanguageAreBoundWhenTheMappingFileGivesThemAVolume(t *testing.T) {
+	manga := filepath.Join(t.TempDir(), "Series")
+	for _, name := range []string{"Ch.0002 (en).cbz", "Ch.0001 (en).cbz", "Ch.0003 - Third (en) [Group].cbz"} {
+		writeArchive(t, filepath.Join(manga, name), "001.jpg")
+	}
+	writeFile(t, filepath.Join(manga, "mangabind.json"),
+		`{"schema_version":1,"volumes":[{"number":"1","chapters":["1-3"]}]}`)
+	out := filepath.Join(t.TempDir(), "out")
+
+	code, _, stderr := runText("-input", manga, "-output", out)
+
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0\nstderr: %s", code, stderr)
+	}
+	want := []string{"c001/p0001.jpg", "c002/p0001.jpg", "c003 - Third/p0001.jpg"}
+	if got := zipEntryNames(t, filepath.Join(out, "Series - Vol.01.cbz")); !reflect.DeepEqual(got, want) {
+		t.Errorf("the volume holds %v, want %v", got, want)
+	}
+}
