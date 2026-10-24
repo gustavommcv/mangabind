@@ -152,6 +152,7 @@ A chapter folder or CBZ is read by its name. These shapes are recognized:
 | `Volume 1 Chapter 5`, `Vol 1 - Ch. 5` | 5 | 1 |
 | `Chapter 5`, `Ch. 5`, `c005`, `Chapter 5 - Title` | 5 | none (see below) |
 | `Ch.0001 (en)`, `Ch.0011 - Title (en) [Group]` (a chapter with no volume, as the MangaDex downloaders name it) | 1, 11 | none (see below) |
+| `Episode 5`, `Ep.07 - Title (en)`, `peppercarrot_episode01`, `Pepper Carrot Episode 7` (an episode is a chapter) | 5, 7, 1, 7 | none (see below) |
 | `001`, `12.5` | 1, 12.5 | none (see below) |
 | `第1話`, `第001話 始まり`, `12話`, `#12 - Title` | 1, 1, 12, 12 | none (see below) |
 | `第1巻 第2話`, `1巻 #3 Title`, `第01巻 - 第12話 始まり` | 2, 3, 12 | 1, 1, 1 |

@@ -292,3 +292,42 @@ func TestChaptersNamedWithALanguageAreBoundWhenTheMappingFileGivesThemAVolume(t 
 		t.Errorf("the volume holds %v, want %v", got, want)
 	}
 }
+
+// A folder of the episodes of a webcomic (`peppercarrot_episode01.cbz`) is a folder of chapters with no volume:
+// each is read, by the parser of episodes, and waits for a volume as a `Chapter 1` does (docs/adr/0030-episodes-are-chapters.md).
+func TestAFolderOfEpisodesIsReadAsChaptersWithNoVolume(t *testing.T) {
+	manga := filepath.Join(t.TempDir(), "Pepper-Carrot")
+	for _, name := range []string{"peppercarrot_episode01.cbz", "peppercarrot_episode02.cbz", "peppercarrot_episode10.cbz"} {
+		writeArchive(t, filepath.Join(manga, name), "001.jpg", "002.jpg")
+	}
+	writeFile(t, filepath.Join(manga, "FONTE-E-LICENCA.txt"), "credits")
+	out := filepath.Join(t.TempDir(), "out")
+
+	report, _, code := runMachineForTest(t, "-input", manga, "-output", out, "-dry-run", "-json")
+
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0", code)
+	}
+	want := map[string]float64{"peppercarrot_episode01": 1, "peppercarrot_episode02": 2, "peppercarrot_episode10": 10}
+	if len(report.Manga[0].Units) != len(want) {
+		t.Fatalf("the report has %d units, want %d", len(report.Manga[0].Units), len(want))
+	}
+	for _, unit := range report.Manga[0].Units {
+		chapter, known := want[unit.Name]
+		if !known {
+			t.Errorf("unexpected unit %q", unit.Name)
+			continue
+		}
+		if !unit.Parser.Matched || unit.Parser.Name != "episode" || unit.Parser.Chapter == nil || *unit.Parser.Chapter != chapter {
+			t.Errorf("%q was not read as episode %v: %+v", unit.Name, chapter, unit.Parser)
+		}
+		if unit.Disposition != "unassigned" {
+			t.Errorf("%q has disposition %q, want unassigned: an episode has no volume", unit.Name, unit.Disposition)
+		}
+	}
+	for _, issue := range report.Manga[0].Issues {
+		if issue.Code == "unparsed_chapter" {
+			t.Errorf("a name was not read: %+v", issue)
+		}
+	}
+}

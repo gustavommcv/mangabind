@@ -18,6 +18,7 @@ func DefaultRegistry() *Registry {
 		VolChTitleParser{},
 		VolumeChapterParser{},
 		ChapterOnlyParser{},
+		EpisodeParser{},
 		JapaneseVolumeChapterParser{},
 		JapaneseVolumeParser{},
 		VolumeOnlyParser{},
