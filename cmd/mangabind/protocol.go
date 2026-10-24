@@ -86,13 +86,17 @@ type mangaReport struct {
 	// its own chapters, page count, and number, but its content physically
 	// lives inside this one file. Additive field, no protocol version bump -
 	// see docs/adr/0012-combine-series-into-one-volume.md.
-	CombinedOutputPath string             `json:"combined_output_path,omitempty"`
-	MetadataFile       string             `json:"metadata_file,omitempty"`
-	Status             string             `json:"status"`
-	Units              []unitReport       `json:"units"`
-	Volumes            []volumeReport     `json:"volumes"`
-	Issues             []machineIssue     `json:"issues"`
-	Summary            mangaReportSummary `json:"summary"`
+	CombinedOutputPath string       `json:"combined_output_path,omitempty"`
+	MetadataFile       string       `json:"metadata_file,omitempty"`
+	Status             string       `json:"status"`
+	Units              []unitReport `json:"units"`
+	// ChapterVersions are the chapters that more than one file claims, whether or not a volume would make them
+	// a conflict, and whether or not the mapping file chose among them - see
+	// docs/adr/0028-the-versions-of-a-chapter-are-chosen-in-the-mapping-file.md.
+	ChapterVersions []versionGroupReport `json:"chapter_versions"`
+	Volumes         []volumeReport       `json:"volumes"`
+	Issues          []machineIssue       `json:"issues"`
+	Summary         mangaReportSummary   `json:"summary"`
 }
 
 type mangaReportSummary struct {
@@ -104,10 +108,13 @@ type mangaReportSummary struct {
 }
 
 type unitReport struct {
-	Name               string                   `json:"name"`
-	Path               string                   `json:"path"`
-	Kind               string                   `json:"kind"`
-	PageCount          int                      `json:"page_count"`
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	Kind      string `json:"kind"`
+	PageCount int    `json:"page_count"`
+	// FirstPage is the first page of the unit in reading order: the name of an image file in a folder, or of
+	// the entry of an archive. It is what a consumer shows to tell the unit by its cover.
+	FirstPage          string                   `json:"first_page,omitempty"`
 	Parser             parserReport             `json:"parser"`
 	MetadataAssignment metadataAssignmentReport `json:"metadata_assignment"`
 	EffectiveVolume    *float64                 `json:"effective_volume,omitempty"`
@@ -140,7 +147,16 @@ type volumeReport struct {
 	OutputPath string   `json:"output_path"`
 	PageCount  int      `json:"page_count"`
 	Chapters   []string `json:"chapters"`
-	Written    bool     `json:"written"`
+	// ChapterEntries are the chapters of the volume as the book holds them, in reading order: the label each
+	// has, which is the name the book's table of contents gives it.
+	ChapterEntries []chapterEntryReport `json:"chapter_entries,omitempty"`
+	Written        bool                 `json:"written"`
+}
+
+type chapterEntryReport struct {
+	Label     string `json:"label"`
+	Path      string `json:"path"`
+	PageCount int    `json:"page_count"`
 }
 
 // machineIssue is shared by planning and execution reports. Stable code and
@@ -177,12 +193,13 @@ func newMachineReport(mode string, batch bool) machineReport {
 
 func newMangaReport(name, input string) mangaReport {
 	return mangaReport{
-		Name:      name,
-		InputPath: input,
-		Status:    "completed",
-		Units:     []unitReport{},
-		Volumes:   []volumeReport{},
-		Issues:    []machineIssue{},
+		Name:            name,
+		InputPath:       input,
+		Status:          "completed",
+		Units:           []unitReport{},
+		ChapterVersions: []versionGroupReport{},
+		Volumes:         []volumeReport{},
+		Issues:          []machineIssue{},
 	}
 }
 
@@ -263,6 +280,7 @@ func runMachine(ctx context.Context, cfg cliConfig, output string, progress prog
 		quiet:        true,
 		dryRun:       cfg.dryRun,
 		combine:      cfg.combine,
+		labels:       cfg.labels,
 		stdout:       io.Discard,
 		stderr:       io.Discard,
 		progress:     progress,

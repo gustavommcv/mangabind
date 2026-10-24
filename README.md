@@ -139,6 +139,17 @@ mangabind --input "Manga/Example Series" --combine
 To convert that structure into an EPUB with volumes and chapters in its table of contents, use
 mangaprep's `--nested-toc` option.
 
+### Name the chapters by their number
+
+A chapter is named inside its volume by its place in it (`c003 - Title`), and the converter shows that name in the
+book's table of contents. `--chapter-labels number` names it by its own number instead (`Ch.6 - Title`, `Ch.5.5`,
+`Ch.21x1`), so the table of contents says chapter 8 when it is chapter 8 even if chapter 3 is missing. The chapters
+stay in the same order. See [the decision](docs/adr/0029-chapters-can-be-labelled-by-their-number.md).
+
+```sh
+mangabind --input "Manga/Example Series" --chapter-labels number
+```
+
 `-i`, `-o`, and `-n` are shortcuts for `--input`, `--output`, and `--dry-run`.
 Use `--quiet` (`-q`) to show only warnings and errors, or `mangabind --help` for all options.
 
@@ -211,6 +222,31 @@ different volumes gets one warning for the file, and the last listing is the one
 
 Use `--metadata-file "path/to/mapping.json"` to select a different file. In batch mode, put a
 `mangabind.json` in each manga folder; one shared `--metadata-file` is not supported.
+
+### When two files are the same chapter
+
+Two files that claim one chapter in one volume (the same chapter from two scan groups, or in two languages) are a
+conflict, and neither is bound: Mangabind does not guess which is right. The report lists them as
+`chapter_versions`, and the mapping file can say which to use, by the path of each file below the manga folder, with
+`/`:
+
+```json
+{
+  "schema_version": 1,
+  "volumes": [{ "number": "1", "chapters": ["1-16"] }],
+  "chapter_versions": [
+    { "chapter": "6", "use": ["Ch.0006 (en) [GroupA].cbz"] },
+    { "chapter": "15", "use": ["Ch.0015 (en) [GroupA].cbz", "Ch.0015 (en) [GroupB].cbz"] },
+    { "chapter": "9", "use": [] }
+  ]
+}
+```
+
+One file is the choice of a version. Several are all bound, one after the other, each told as `(version 1 of 2)`.
+None leaves the chapter out. A file that is not chosen stays where it is and is reported as `not_chosen`. A choice
+about a chapter that one file claims has nothing to decide, and a choice that names none of the files of its chapter
+is reported (`chapter_choice_unmatched`) and not used. See
+[the decision](docs/adr/0028-the-versions-of-a-chapter-are-chosen-in-the-mapping-file.md).
 
 Mangabind uses the `volumes` field for grouping and does not fetch metadata online. Other fields,
 including `manga` and `source`, may be stored by tools such as Manga2Ink without affecting

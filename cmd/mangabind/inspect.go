@@ -33,7 +33,8 @@ func (m *mangaRun) inspect(ctx context.Context) (result grouper.Result, found bo
 	if err != nil {
 		return result, false, err
 	}
-	result = grouper.Group(chapters, unparsed)
+	chapters = m.chooseVersions(chapters, metaMap)
+	result = grouper.GroupLabeled(chapters, unparsed, m.opts.labels)
 	markUnitDispositions(m.report.Units, result)
 	m.progress(machineProgress{Stage: "inspect", State: "completed", Manga: m.name})
 	return result, true, nil
@@ -210,6 +211,9 @@ func (m *mangaRun) inspectEntry(reg *parser.Registry, e scanner.ChapterEntry, fo
 		return chapter, false, wrapped
 	}
 	unit.PageCount = len(pages)
+	if len(pages) > 0 {
+		unit.FirstPage = pages[0]
+	}
 	m.rep.skippedPages(e, &parsed, notPages)
 	m.rep.oversizedPages(e, &parsed, tooLarge)
 	if len(pages) == 0 {
