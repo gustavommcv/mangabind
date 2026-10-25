@@ -58,6 +58,11 @@ const (
 	LabelsByNumber
 )
 
+// WholeBookVolume is the number of the one volume of a book with no volumes: the chapters are all put in it, and
+// it is only called a volume because a volume has a number
+// (docs/adr/0030-a-series-without-volumes-is-one-book-of-chapters.md).
+const WholeBookVolume float64 = 1
+
 // VolumeChapter is what a volume holds of one chapter: the directory it was
 // given inside the volume, where it came from, and how many pages it has.
 type VolumeChapter struct {

@@ -17,6 +17,10 @@ type runOptions struct {
 
 	quiet, dryRun, combine bool
 
+	// noVolumes binds every chapter into one book, in the order of the chapters, whatever volumes the names, the
+	// folders and the mapping file give them (docs/adr/0030-a-series-without-volumes-is-one-book-of-chapters.md).
+	noVolumes bool
+
 	// labels is how the chapters are named inside a volume, and so in the table of contents of its book.
 	labels grouper.LabelStyle
 

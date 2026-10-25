@@ -45,7 +45,7 @@ func TestMachineProtocolVersion(t *testing.T) {
 	if got.ProtocolVersion != machineProtocolVersion || got.Tool != "mangabind" || got.ToolVersion == "" {
 		t.Fatalf("unexpected protocol information: %+v", got)
 	}
-	want := []string{"report", "progress-json", "chapter-versions", "chapter-labels", "unit-first-page"}
+	want := []string{"report", "progress-json", "chapter-versions", "chapter-labels", "unit-first-page", "no-volumes"}
 	if !reflect.DeepEqual(got.Capabilities, want) {
 		t.Fatalf("capabilities = %v, want %v", got.Capabilities, want)
 	}

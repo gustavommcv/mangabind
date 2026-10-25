@@ -196,10 +196,14 @@ func (m *mangaRun) inspectEntry(reg *parser.Registry, e scanner.ChapterEntry, fo
 		Group:    parsed.Group,
 		Language: parsed.Lang,
 	}
-	if folderVolume != nil {
-		m.takeFolderVolume(&parsed, *folderVolume, e)
+	if m.opts.noVolumes {
+		m.leaveVolumes(&unit, &parsed)
+	} else {
+		if folderVolume != nil {
+			m.takeFolderVolume(&parsed, *folderVolume, e)
+		}
+		m.assignVolume(&unit, &parsed, e, metaMap)
 	}
-	m.assignVolume(&unit, &parsed, e, metaMap)
 	unit.EffectiveVolume = copyFloat(parsed.Volume)
 
 	pages, notPages, tooLarge, err := m.listPages(e, &parsed)
@@ -224,6 +228,14 @@ func (m *mangaRun) inspectEntry(reg *parser.Registry, e scanner.ChapterEntry, fo
 
 	m.report.Units = append(m.report.Units, unit)
 	return grouper.Chapter{Parsed: parsed, Path: e.Path, Pages: pages, IsArchive: e.IsArchive}, true, nil
+}
+
+// leaveVolumes puts a chapter in the one volume of a book with no volumes, whatever its name, its folder or the
+// mapping file say: they are what the report keeps of it, and none of them is a conflict, since none is used.
+func (m *mangaRun) leaveVolumes(unit *unitReport, parsed *parser.ParsedChapter) {
+	unit.MetadataAssignment.Status = "not_applicable"
+	one := grouper.WholeBookVolume
+	parsed.Volume = &one
 }
 
 // takeFolderVolume gives a chapter found in a volume folder that carries no volume in its name the volume of

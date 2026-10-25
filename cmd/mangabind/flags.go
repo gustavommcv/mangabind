@@ -14,9 +14,9 @@ import (
 // cliConfig is the parsed result of the command line, kept separate from
 // flag.FlagSet so parseFlags is easy to call directly from tests.
 type cliConfig struct {
-	input, output, metadataFile                       string
-	batch, quiet, dryRun, json, combine, progressJSON bool
-	showVersion, showProtocol                         bool
+	input, output, metadataFile                                  string
+	batch, quiet, dryRun, json, combine, noVolumes, progressJSON bool
+	showVersion, showProtocol                                    bool
 
 	// labels is how the chapters are named inside a volume, from -chapter-labels.
 	labels grouper.LabelStyle
@@ -81,6 +81,7 @@ func parseFlags(args []string) (cliConfig, *flag.FlagSet, error) {
 	fs.BoolVar(&cfg.json, "json", false, "emit one versioned JSON report on stdout instead of human-readable output")
 	fs.BoolVar(&cfg.progressJSON, "progress-json", false, "with -json, emit newline-delimited progress events on stderr while keeping the final report on stdout")
 	fs.BoolVar(&cfg.combine, "combine", false, "write the whole manga as one .cbz instead of one per volume, still reporting each volume's own chapters")
+	fs.BoolVar(&cfg.noVolumes, "no-volumes", false, "bind every chapter into one .cbz with no volumes, whatever volumes the names give them: the book's table of contents is the chapters in order (not combinable with -combine)")
 	chapterLabels := fs.String("chapter-labels", "position", "how a chapter is named inside its volume, and so in the book's table of contents: position (c003 - Title) or number (Ch.6 - Title)")
 	fs.BoolVar(&cfg.showProtocol, "protocol-version", false, "print machine-protocol compatibility information as JSON and exit")
 	fs.BoolVar(&cfg.showVersion, "version", false, "print the version and exit")
@@ -130,6 +131,7 @@ Examples:
   mangabind -i ~/Manga/"Chainsaw Man" -o ~/Volumes
   mangabind -input ~/Manga -batch
   mangabind -input ~/Manga/"Some Manga" -metadata-file volumes.json
+  mangabind -input ~/Manga/"Some Manga" -no-volumes
   mangabind -input "D:\Manga\Chainsaw Man"      (Windows)
 
 Flags:

@@ -77,7 +77,7 @@ func runCLIContext(ctx context.Context, args []string, stdout, stderr io.Writer)
 			ProtocolVersion: machineProtocolVersion,
 			Tool:            "mangabind",
 			ToolVersion:     version,
-			Capabilities:    []string{"report", "progress-json", "chapter-versions", "chapter-labels", "unit-first-page"},
+			Capabilities:    []string{"report", "progress-json", "chapter-versions", "chapter-labels", "unit-first-page", "no-volumes"},
 		}); err != nil {
 			printlnTo(stderr, "mangabind: writing protocol information:", err)
 			return 1
@@ -126,6 +126,21 @@ func runCLIContext(ctx context.Context, args []string, stdout, stderr io.Writer)
 		return 2
 	}
 
+	if cfg.noVolumes && cfg.combine {
+		message := "-no-volumes can't be combined with -combine - a book with no volumes has no volumes to nest in one file"
+		if cfg.json {
+			report := newMachineReport(modeFor(cfg.dryRun), cfg.batch)
+			value := issue("error", "no_volumes_with_combine", "configuration", "A book with no volumes cannot be combined.")
+			value.Recoverable = true
+			value.Diagnostic = message
+			report.addIssue(value)
+			_ = writeMachineJSON(stdout, report)
+		} else {
+			printlnTo(stderr, "mangabind:", message)
+		}
+		return 2
+	}
+
 	output := cfg.output
 	if output == "" {
 		output = defaultOutputDir(cfg.input)
@@ -156,6 +171,7 @@ func runCLIContext(ctx context.Context, args []string, stdout, stderr io.Writer)
 		quiet:        cfg.quiet,
 		dryRun:       cfg.dryRun,
 		combine:      cfg.combine,
+		noVolumes:    cfg.noVolumes,
 		labels:       cfg.labels,
 		human:        true,
 		stdout:       stdout,
