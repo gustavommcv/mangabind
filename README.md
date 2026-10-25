@@ -235,6 +235,20 @@ different volumes gets one warning for the file, and the last listing is the one
 Use `--metadata-file "path/to/mapping.json"` to select a different file. In batch mode, put a
 `mangabind.json` in each manga folder; one shared `--metadata-file` is not supported.
 
+### Everything the file may hold
+
+| Key | What it is |
+| --- | --- |
+| `schema_version` | Required, and `1`. A file with another number is refused. |
+| `volumes` | The chapter-to-volume assignments shown above. It may be empty or left out: a file that only says which version of a chapter to use needs no volumes. `--no-volumes` does not use it at all. |
+| `chapter_versions` | Which of the files that claim one chapter to use (below). It is used with or without volumes, and with `--no-volumes`. |
+| `manga` | Facts about the manga that Mangabind does not read: `title`, and the `author` and `language` that a program such as Manga2Ink keeps here. Nothing in it changes what is bound. |
+| `source` | Where the assignments came from (`provider` and `id`), so that a person or a program can refresh them later. Not read either. |
+
+Any other key is ignored, so a program can keep its own facts in the file (Manga2Ink keeps what it saw of the files
+of a chapter under `manga2ink`) without changing how Mangabind reads it. A series that has no volumes at all needs no
+file: `--no-volumes` binds every chapter into one book.
+
 ### When two files are the same chapter
 
 Two files that claim one chapter in one volume (the same chapter from two scan groups, or in two languages) are a
