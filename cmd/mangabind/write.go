@@ -37,6 +37,7 @@ func (m *mangaRun) write(ctx context.Context, result grouper.Result) (failedVolu
 	for _, volume := range result.Volumes {
 		totalPages += len(volume.Pages)
 	}
+	m.report.WithoutVolumes = m.opts.noVolumes
 	events := writeEvents{sink: m.opts.progress, manga: m.name, volumes: len(result.Volumes), totalPages: totalPages}
 	if m.opts.combine {
 		return 0, m.writeCombined(ctx, result, events)
@@ -58,6 +59,15 @@ func (m *mangaRun) plannedVolume(vol grouper.Volume, outPath string) volumeRepor
 		Chapters:       chapterNamesForVolume(m.report.Units, vol.Number),
 		ChapterEntries: entries,
 	}
+}
+
+// volumePath is where a volume is written: the file of its number, or, for a book with no volumes, the file of
+// the manga, which has no number in its name.
+func (m *mangaRun) volumePath(vol grouper.Volume) string {
+	if m.opts.noVolumes {
+		return filepath.Join(m.opts.output, cbz.SeriesFileName(m.name))
+	}
+	return filepath.Join(m.opts.output, cbz.VolumeFileName(m.name, vol.Number))
 }
 
 // writeCombined writes the whole manga as one .cbz instead of one per volume - see
@@ -126,7 +136,7 @@ func (m *mangaRun) writeCombined(ctx context.Context, result grouper.Result, eve
 func (m *mangaRun) writeVolumes(ctx context.Context, result grouper.Result, events writeEvents) (failedVolumes int, err error) {
 	completedPages := 0
 	for index, vol := range result.Volumes {
-		outPath := filepath.Join(m.opts.output, cbz.VolumeFileName(m.name, vol.Number))
+		outPath := m.volumePath(vol)
 		if cause := ctx.Err(); cause != nil {
 			return failedVolumes, m.stopAt(result.Volumes[index:], fmt.Sprintf("Interrupted before volume %v was written.", vol.Number), "", cause)
 		}
@@ -179,8 +189,7 @@ func (m *mangaRun) writeVolumes(ctx context.Context, result grouper.Result, even
 // and not written, as they would be after a failure, and the report says why.
 func (m *mangaRun) stopAt(left []grouper.Volume, message, path string, cause error) error {
 	for _, vol := range left {
-		outPath := filepath.Join(m.opts.output, cbz.VolumeFileName(m.name, vol.Number))
-		m.report.Volumes = append(m.report.Volumes, m.plannedVolume(vol, outPath))
+		m.report.Volumes = append(m.report.Volumes, m.plannedVolume(vol, m.volumePath(vol)))
 	}
 	return m.rep.interrupted("write", message, path, cause)
 }

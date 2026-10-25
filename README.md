@@ -139,6 +139,18 @@ mangabind --input "Manga/Example Series" --combine
 To convert that structure into an EPUB with volumes and chapters in its table of contents, use
 mangaprep's `--nested-toc` option.
 
+### A series with no volumes
+
+`--no-volumes` binds every chapter into one CBZ, `Example Series.cbz`, with no volumes: the chapters are in the order
+of their numbers, a chapter that names no volume is in it too, and the table of contents of the book is the chapters
+alone (`Ch.1`, `Ch.2`, ...) and not `Vol.1` with its chapters under it. The volumes the names, the folders or the
+mapping file give are not used. It cannot be combined with `--combine`, which has volumes to nest. See
+[the decision](docs/adr/0030-a-series-without-volumes-is-one-book-of-chapters.md).
+
+```sh
+mangabind --input "Manga/Example Series" --no-volumes --chapter-labels number
+```
+
 ### Name the chapters by their number
 
 A chapter is named inside its volume by its place in it (`c003 - Title`), and the converter shows that name in the

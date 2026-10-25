@@ -86,10 +86,14 @@ type mangaReport struct {
 	// its own chapters, page count, and number, but its content physically
 	// lives inside this one file. Additive field, no protocol version bump -
 	// see docs/adr/0012-combine-series-into-one-volume.md.
-	CombinedOutputPath string       `json:"combined_output_path,omitempty"`
-	MetadataFile       string       `json:"metadata_file,omitempty"`
-	Status             string       `json:"status"`
-	Units              []unitReport `json:"units"`
+	CombinedOutputPath string `json:"combined_output_path,omitempty"`
+	// WithoutVolumes is set when -no-volumes was used: the one volume below is the whole book, numbered 1 only
+	// because a volume has a number, and every unit has that volume as its effective one - see
+	// docs/adr/0030-a-series-without-volumes-is-one-book-of-chapters.md.
+	WithoutVolumes bool         `json:"without_volumes,omitempty"`
+	MetadataFile   string       `json:"metadata_file,omitempty"`
+	Status         string       `json:"status"`
+	Units          []unitReport `json:"units"`
 	// ChapterVersions are the chapters that more than one file claims, whether or not a volume would make them
 	// a conflict, and whether or not the mapping file chose among them - see
 	// docs/adr/0028-the-versions-of-a-chapter-are-chosen-in-the-mapping-file.md.
@@ -280,6 +284,7 @@ func runMachine(ctx context.Context, cfg cliConfig, output string, progress prog
 		quiet:        true,
 		dryRun:       cfg.dryRun,
 		combine:      cfg.combine,
+		noVolumes:    cfg.noVolumes,
 		labels:       cfg.labels,
 		stdout:       io.Discard,
 		stderr:       io.Discard,

@@ -60,12 +60,22 @@ func (m *mangaRun) reportFindings(result grouper.Result) {
 			forChapter(nil, chapter, c.Parsed.Special), atPath(absolutePath(c.Path)))
 	}
 	for _, g := range result.Gaps {
+		if m.opts.noVolumes {
+			m.rep.sayf("warning: the book is missing chapter(s) between %v and %v", g.After, g.Before)
+			m.rep.record("warning", "chapter_gap", "group",
+				fmt.Sprintf("The book is missing chapters between %v and %v.", g.After, g.Before))
+			continue
+		}
 		m.rep.sayf("warning: volume %v is missing chapter(s) between %v and %v", g.Volume, g.After, g.Before)
 		m.rep.record("warning", "chapter_gap", "group",
 			fmt.Sprintf("Volume %v is missing chapters between %v and %v.", g.Volume, g.After, g.Before),
 			forVolume(&g.Volume))
 	}
 	for _, c := range result.Conflicts {
+		if m.opts.noVolumes {
+			m.reportConflictOfBook(c)
+			continue
+		}
 		m.rep.sayf("warning: volume %v chapter %v%s has %d conflicting sources, all skipped:", c.Volume, c.Chapter, c.Special, len(c.Sources))
 		related := make([]string, len(c.Sources))
 		for i, source := range c.Sources {
@@ -76,6 +86,20 @@ func (m *mangaRun) reportFindings(result grouper.Result) {
 			fmt.Sprintf("Volume %v chapter %v%s has %d conflicting sources; all were skipped.", c.Volume, c.Chapter, c.Special, len(c.Sources)),
 			forChapter(&c.Volume, c.Chapter, c.Special), relatedTo(related))
 	}
+}
+
+// reportConflictOfBook tells of a chapter that two sources claim in a book with no volumes: there is no volume to
+// name, and the chapters of two volumes that are numbered again from 1 are the ones that meet here.
+func (m *mangaRun) reportConflictOfBook(c grouper.Conflict) {
+	m.rep.sayf("warning: chapter %v%s has %d conflicting sources, all skipped:", c.Chapter, c.Special, len(c.Sources))
+	related := make([]string, len(c.Sources))
+	for i, source := range c.Sources {
+		m.rep.sayf("  - %q", m.shown(source))
+		related[i] = absolutePath(source)
+	}
+	m.rep.record("warning", "chapter_conflict", "group",
+		fmt.Sprintf("Chapter %v%s has %d conflicting sources; all were skipped.", c.Chapter, c.Special, len(c.Sources)),
+		forChapter(nil, c.Chapter, c.Special), relatedTo(related))
 }
 
 // shown names the folder or archive of a chapter in a message: its path below the manga folder, which for a

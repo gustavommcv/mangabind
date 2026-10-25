@@ -15,7 +15,7 @@ The command exits 0 and writes one JSON object to stdout:
   "protocol_version": 1,
   "tool": "mangabind",
   "tool_version": "0.7.0",
-  "capabilities": ["report", "progress-json", "chapter-versions", "chapter-labels", "unit-first-page"]
+  "capabilities": ["report", "progress-json", "chapter-versions", "chapter-labels", "unit-first-page", "no-volumes"]
 }
 ```
 
@@ -33,6 +33,8 @@ compare release versions. The others are:
 - `chapter-labels`: the `-chapter-labels` flag and the volume's `chapter_entries`
   ([ADR 0029](adr/0029-chapters-can-be-labelled-by-their-number.md))
 - `unit-first-page`: the unit's `first_page`
+- `no-volumes`: the `-no-volumes` flag and the manga report's `without_volumes`
+  ([ADR 0030](adr/0030-a-series-without-volumes-is-one-book-of-chapters.md))
 
 ## Exit codes
 
@@ -43,7 +45,7 @@ the exit code says whether anything was not.
 |---|---|
 | 0 | The run completed. Its `status` is `completed` or `completed_with_warnings`; nothing to bind is a warning, not a failure. |
 | 1 | Something could not be done: the report's `status` is `failed`, and its error issues say what. |
-| 2 | The command line could not be used (`invalid_arguments`, `missing_input`, `metadata_file_with_batch`, `--progress-json` without `--json`). |
+| 2 | The command line could not be used (`invalid_arguments`, `missing_input`, `metadata_file_with_batch`, `no_volumes_with_combine`, `--progress-json` without `--json`). |
 | 130 | The run was interrupted by Ctrl-C or `SIGTERM` (`interrupted`). |
 
 When machine output was asked for, the report is on stdout for every one of these that the process
@@ -161,6 +163,12 @@ each individual entry - the write succeeded or failed as a whole, reflected by w
 `combined_output_path`'s file actually exists and by the absence of a `combined_write_failed`
 issue. See [ADR 0012](adr/0012-combine-series-into-one-volume.md).
 
+When `-no-volumes` was used, the manga report has `without_volumes: true` and one volume: the whole book, numbered 1
+because a volume has a number, written to `<manga>.cbz` (no volume in its name) and with `written` as for any volume.
+Every unit has that volume as its `effective_volume` and `metadata_assignment.status` `not_applicable`; what its name
+says stays in `parser.volume`. Issues about a chapter or a gap name no volume. See
+[ADR 0030](adr/0030-a-series-without-volumes-is-one-book-of-chapters.md).
+
 A volume's `chapter_entries` lists its chapters in reading order, each with the `label` the chapter has in the book
 (the name of its directory in the volume, which the converter shows in the table of contents), the absolute `path`
 of the unit it came from, and its `page_count`. The label is `c003 - Title` by default, and `Ch.6 - Title` with
@@ -192,6 +200,7 @@ Version 1 codes are:
 | `invalid_arguments` | `configuration` | A flag could not be parsed, or an argument that is not a flag was left over |
 | `missing_input` | `configuration` | No input was provided |
 | `metadata_file_with_batch` | `configuration` | One shared metadata override was requested for batch mode |
+| `no_volumes_with_combine` | `configuration` | `-no-volumes` and `-combine` were asked for together |
 | `library_scan_failed` | `inspect` | The batch root could not be read |
 | `input_scan_failed` | `inspect` | A manga input could not be read |
 | `unsupported_input_file` | `inspect` | A sibling file is not a supported chapter unit |
